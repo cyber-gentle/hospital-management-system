@@ -8,6 +8,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { AuthProvider, useAuth, UserRole } from "./lib/auth";
+import { MedicalRecordsView } from "./modules/medicalrecords/MedicalRecordsView";
 
 interface ModuleCard {
   id: string;
@@ -54,6 +55,7 @@ const ROLES: UserRole[] = [
 const Dashboard: React.FC = () => {
   const { user, login } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
+  const [activeModule, setActiveModule] = useState<string | null>("medicalrecords");
 
   const filteredModules = selectedFilter === "All"
     ? MODULES
@@ -75,19 +77,52 @@ const Dashboard: React.FC = () => {
       {/* Top Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
-              <HeartPulse className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="font-bold text-lg text-slate-900 tracking-tight flex items-center gap-2">
-                HIMS
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
-                  Single-Tenant
-                </span>
+          <div className="flex items-center space-x-6">
+            <button
+              type="button"
+              onClick={() => setActiveModule(null)}
+              className="flex items-center space-x-3 text-left focus:outline-none group"
+            >
+              <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                <HeartPulse className="w-6 h-6" />
               </div>
-              <p className="text-xs text-slate-500">Federal Teaching Hospital Information Management System</p>
-            </div>
+              <div>
+                <div className="font-bold text-lg text-slate-900 tracking-tight flex items-center gap-2">
+                  HIMS
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                    Single-Tenant
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">Federal Teaching Hospital</p>
+              </div>
+            </button>
+
+            {/* Quick Navigation Tabs */}
+            <nav className="hidden md:flex items-center gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setActiveModule(null)}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                  activeModule === null
+                    ? "bg-slate-100 text-slate-900"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                20-Module Directory
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModule("medicalrecords")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "medicalrecords"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                Medical Records (Active)
+              </button>
+            </nav>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -113,99 +148,121 @@ const Dashboard: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Architecture Status Banner */}
-        <section className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-            <div className="space-y-2 md:col-span-2">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-emerald-500/30">
-                <CheckCircle2 className="w-3 h-3" />
-                Phase 0 Scaffold Active
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Polyglot Two-Service Hospital Architecture
-              </h1>
-              <p className="text-sm text-slate-300 leading-relaxed max-w-2xl">
-                Go Core service manages 17 operational modules and owns system-wide Auth + Audit Logging.
-                Python FastAPI service manages the 3 HL7/FHIR diagnostic modules (Lab, NHIA, Radiology).
-              </p>
-            </div>
+        {activeModule === "medicalrecords" ? (
+          <MedicalRecordsView onBackToDashboard={() => setActiveModule(null)} />
+        ) : (
+          <>
+            {/* Architecture Status Banner */}
+            <section className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                <div className="space-y-2 md:col-span-2">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-emerald-500/30">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Phase 0 Scaffold Active
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                    Polyglot Two-Service Hospital Architecture
+                  </h1>
+                  <p className="text-sm text-slate-300 leading-relaxed max-w-2xl">
+                    Go Core service manages 17 operational modules and owns system-wide Auth + Audit Logging.
+                    Python FastAPI service manages the 3 HL7/FHIR diagnostic modules (Lab, NHIA, Radiology).
+                  </p>
+                </div>
 
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 space-y-3">
-              <div className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Service Topology</div>
-              <div className="flex items-center justify-between text-xs py-1 border-b border-white/10">
-                <span className="flex items-center gap-1.5"><Building className="w-3.5 h-3.5 text-blue-300" /> Go Core</span>
-                <span className="font-mono text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded">port 8080</span>
+                <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 space-y-3">
+                  <div className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Service Topology</div>
+                  <div className="flex items-center justify-between text-xs py-1 border-b border-white/10">
+                    <span className="flex items-center gap-1.5"><Building className="w-3.5 h-3.5 text-blue-300" /> Go Core</span>
+                    <span className="font-mono text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded">port 8080</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs py-1 border-b border-white/10">
+                    <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-amber-300" /> Python Interop</span>
+                    <span className="font-mono text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded">port 8000</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs py-1">
+                    <span className="flex items-center gap-1.5"><Database className="w-3.5 h-3.5 text-indigo-300" /> PostgreSQL</span>
+                    <span className="font-mono text-blue-200 bg-blue-950/60 px-2 py-0.5 rounded">port 5432</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-xs py-1 border-b border-white/10">
-                <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-amber-300" /> Python Interop</span>
-                <span className="font-mono text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded">port 8000</span>
-              </div>
-              <div className="flex items-center justify-between text-xs py-1">
-                <span className="flex items-center gap-1.5"><Database className="w-3.5 h-3.5 text-indigo-300" /> PostgreSQL</span>
-                <span className="font-mono text-blue-200 bg-blue-950/60 px-2 py-0.5 rounded">port 5432</span>
-              </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        {/* Modules Filter & Grid */}
-        <section className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">System Modules Directory</h2>
-              <p className="text-sm text-slate-500">20 verified hospital modules in scope</p>
-            </div>
+            {/* Modules Filter & Grid */}
+            <section className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">System Modules Directory</h2>
+                  <p className="text-sm text-slate-500">20 verified hospital modules in scope</p>
+                </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-200/80 p-1 rounded-lg text-xs font-medium">
-              {["All", "Clinical", "Diagnostic", "Financial", "Operational", "Go", "Python"].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setSelectedFilter(filter)}
-                  className={`px-3 py-1.5 rounded-md transition-colors ${
-                    selectedFilter === filter
-                      ? "bg-white text-slate-900 shadow-sm font-semibold"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
-                  }`}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredModules.map((mod) => (
-              <div
-                key={mod.id}
-                className="bg-white border border-slate-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition-all group flex flex-col justify-between"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                        mod.service.includes("Python")
-                          ? "bg-amber-50 text-amber-700 border border-amber-200"
-                          : "bg-blue-50 text-blue-700 border border-blue-200"
+                <div className="flex flex-wrap items-center gap-1.5 bg-slate-200/80 p-1 rounded-lg text-xs font-medium">
+                  {["All", "Clinical", "Diagnostic", "Financial", "Operational", "Go", "Python"].map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setSelectedFilter(filter)}
+                      className={`px-3 py-1.5 rounded-md transition-colors ${
+                        selectedFilter === filter
+                          ? "bg-white text-slate-900 shadow-sm font-semibold"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
                       }`}
                     >
-                      {mod.service.includes("Python") ? "Python Interop" : "Go Core"}
-                    </span>
-                    <span className="text-[10px] font-medium text-slate-400">{mod.category}</span>
-                  </div>
-                  <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
-                    {mod.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">{mod.description}</p>
-                </div>
-
-                <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-mono text-[11px]">/api/v1/{mod.id}</span>
-                  <span className="text-blue-600 font-semibold group-hover:underline">Ready</span>
+                      {filter}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredModules.map((mod) => (
+                  <div
+                    key={mod.id}
+                    onClick={() => {
+                      if (mod.id === "medicalrecords") {
+                        setActiveModule("medicalrecords");
+                      }
+                    }}
+                    className={`bg-white border rounded-xl p-5 transition-all group flex flex-col justify-between ${
+                      mod.id === "medicalrecords"
+                        ? "cursor-pointer border-blue-400 hover:shadow-lg ring-2 ring-blue-500/20 bg-gradient-to-b from-blue-50/20 to-white"
+                        : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            mod.service.includes("Python")
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : "bg-blue-50 text-blue-700 border border-blue-200"
+                          }`}
+                        >
+                          {mod.service.includes("Python") ? "Python Interop" : "Go Core"}
+                        </span>
+                        <span className="text-[10px] font-medium text-slate-400">{mod.category}</span>
+                      </div>
+                      <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors flex items-center justify-between">
+                        <span>{mod.name}</span>
+                        {mod.id === "medicalrecords" && (
+                          <span className="text-[10px] font-bold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-full">
+                            Active
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">{mod.description}</p>
+                    </div>
+
+                    <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-mono text-[11px]">/api/v1/{mod.id}</span>
+                      <span className={`font-semibold ${mod.id === "medicalrecords" ? "text-blue-600 underline font-bold" : "text-slate-400"}`}>
+                        {mod.id === "medicalrecords" ? "Open Module →" : "Scaffolded"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       {/* Footer */}
