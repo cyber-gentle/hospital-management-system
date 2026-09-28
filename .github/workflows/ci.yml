@@ -57,7 +57,7 @@ jobs:
         run: python -m py_compile $(git ls-files '*.py')
 
       - name: Run Pytest
-        run: pytest -v
+        run: python -m pytest -v
 
   frontend-ci:
     name: Frontend (Type-Check & Build)

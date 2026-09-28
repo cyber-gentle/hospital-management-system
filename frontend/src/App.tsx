@@ -2,12 +2,6 @@ import React, { useState } from "react";
 import {
   Activity,
   Shield,
-  FileText,
-  UserCheck,
-  CreditCard,
-  Pill,
-  Calendar,
-  Layers,
   HeartPulse,
   Database,
   Building,
