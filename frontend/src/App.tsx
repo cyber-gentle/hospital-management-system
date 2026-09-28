@@ -14,6 +14,7 @@ import { BillingView } from "./modules/billing/BillingView";
 import { PharmacyView } from "./modules/pharmacy/PharmacyView";
 import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
+import { SubstoreView } from "./modules/substore/SubstoreView";
 
 interface ModuleCard {
   id: string;
@@ -187,6 +188,18 @@ const Dashboard: React.FC = () => {
                 <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                 General Ledger
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveModule("substore")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "substore"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-orange-600"></span>
+                Sub-stores
+              </button>
             </nav>
           </div>
 
@@ -225,6 +238,8 @@ const Dashboard: React.FC = () => {
           <AppointmentsView />
         ) : activeModule === "accounting" ? (
           <AccountingView />
+        ) : activeModule === "substore" ? (
+          <SubstoreView />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -295,7 +310,8 @@ const Dashboard: React.FC = () => {
                     mod.id === "billing" ||
                     mod.id === "pharmacy" ||
                     mod.id === "appointments" ||
-                    mod.id === "accounting";
+                    mod.id === "accounting" ||
+                    mod.id === "substore";
                   return (
                     <div
                       key={mod.id}
