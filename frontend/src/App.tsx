@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { AuthProvider, useAuth, UserRole } from "./lib/auth";
 import { MedicalRecordsView } from "./modules/medicalrecords/MedicalRecordsView";
+import { NursingView } from "./modules/nursing/NursingView";
 
 interface ModuleCard {
   id: string;
@@ -120,7 +121,19 @@ const Dashboard: React.FC = () => {
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                Medical Records (Active)
+                Medical Records
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModule("nursing")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "nursing"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                Nursing Services (Active)
               </button>
             </nav>
           </div>
@@ -150,6 +163,8 @@ const Dashboard: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {activeModule === "medicalrecords" ? (
           <MedicalRecordsView onBackToDashboard={() => setActiveModule(null)} />
+        ) : activeModule === "nursing" ? (
+          <NursingView />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -213,52 +228,55 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredModules.map((mod) => (
-                  <div
-                    key={mod.id}
-                    onClick={() => {
-                      if (mod.id === "medicalrecords") {
-                        setActiveModule("medicalrecords");
-                      }
-                    }}
-                    className={`bg-white border rounded-xl p-5 transition-all group flex flex-col justify-between ${
-                      mod.id === "medicalrecords"
-                        ? "cursor-pointer border-blue-400 hover:shadow-lg ring-2 ring-blue-500/20 bg-gradient-to-b from-blue-50/20 to-white"
-                        : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
-                    }`}
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                            mod.service.includes("Python")
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : "bg-blue-50 text-blue-700 border border-blue-200"
-                          }`}
-                        >
-                          {mod.service.includes("Python") ? "Python Interop" : "Go Core"}
-                        </span>
-                        <span className="text-[10px] font-medium text-slate-400">{mod.category}</span>
-                      </div>
-                      <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors flex items-center justify-between">
-                        <span>{mod.name}</span>
-                        {mod.id === "medicalrecords" && (
-                          <span className="text-[10px] font-bold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-full">
-                            Active
+                {filteredModules.map((mod) => {
+                  const isImplemented = mod.id === "medicalrecords" || mod.id === "nursing";
+                  return (
+                    <div
+                      key={mod.id}
+                      onClick={() => {
+                        if (isImplemented) {
+                          setActiveModule(mod.id);
+                        }
+                      }}
+                      className={`bg-white border rounded-xl p-5 transition-all group flex flex-col justify-between ${
+                        isImplemented
+                          ? "cursor-pointer border-blue-400 hover:shadow-lg ring-2 ring-blue-500/20 bg-gradient-to-b from-blue-50/20 to-white"
+                          : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                              mod.service.includes("Python")
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : "bg-blue-50 text-blue-700 border border-blue-200"
+                            }`}
+                          >
+                            {mod.service.includes("Python") ? "Python Interop" : "Go Core"}
                           </span>
-                        )}
-                      </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">{mod.description}</p>
-                    </div>
+                          <span className="text-[10px] font-medium text-slate-400">{mod.category}</span>
+                        </div>
+                        <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors flex items-center justify-between">
+                          <span>{mod.name}</span>
+                          {isImplemented && (
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-full">
+                              Active
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">{mod.description}</p>
+                      </div>
 
-                    <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-                      <span className="font-mono text-[11px]">/api/v1/{mod.id}</span>
-                      <span className={`font-semibold ${mod.id === "medicalrecords" ? "text-blue-600 underline font-bold" : "text-slate-400"}`}>
-                        {mod.id === "medicalrecords" ? "Open Module →" : "Scaffolded"}
-                      </span>
+                      <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                        <span className="font-mono text-[11px]">/api/v1/{mod.id}</span>
+                        <span className={`font-semibold ${isImplemented ? "text-blue-600 underline font-bold" : "text-slate-400"}`}>
+                          {isImplemented ? "Open Module →" : "Scaffolded"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </>
