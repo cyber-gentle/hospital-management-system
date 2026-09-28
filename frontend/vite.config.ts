@@ -11,7 +11,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 5173,
+    host: "0.0.0.0",
     proxy: {
       // Directs API calls to the reverse proxy or Go core backend during local dev
       "/api": {
