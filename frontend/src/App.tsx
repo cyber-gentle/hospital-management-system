@@ -11,6 +11,7 @@ import { AuthProvider, useAuth, UserRole } from "./lib/auth";
 import { MedicalRecordsView } from "./modules/medicalrecords/MedicalRecordsView";
 import { NursingView } from "./modules/nursing/NursingView";
 import { BillingView } from "./modules/billing/BillingView";
+import { PharmacyView } from "./modules/pharmacy/PharmacyView";
 
 interface ModuleCard {
   id: string;
@@ -146,7 +147,19 @@ const Dashboard: React.FC = () => {
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                Accounts & Billing (Active)
+                Accounts & Billing
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModule("pharmacy")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "pharmacy"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                Pharmacy (Active)
               </button>
             </nav>
           </div>
@@ -180,6 +193,8 @@ const Dashboard: React.FC = () => {
           <NursingView />
         ) : activeModule === "billing" ? (
           <BillingView />
+        ) : activeModule === "pharmacy" ? (
+          <PharmacyView />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -244,7 +259,11 @@ const Dashboard: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredModules.map((mod) => {
-                  const isImplemented = mod.id === "medicalrecords" || mod.id === "nursing" || mod.id === "billing";
+                  const isImplemented =
+                    mod.id === "medicalrecords" ||
+                    mod.id === "nursing" ||
+                    mod.id === "billing" ||
+                    mod.id === "pharmacy";
                   return (
                     <div
                       key={mod.id}
