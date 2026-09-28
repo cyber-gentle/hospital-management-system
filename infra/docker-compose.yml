@@ -62,6 +62,10 @@ services:
     environment:
       VITE_CORE_API_URL: "http://localhost:8080"
       VITE_INTEROP_API_URL: "http://localhost:8000"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 5173
     depends_on:
       - core-go
       - interop-py
