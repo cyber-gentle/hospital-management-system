@@ -13,6 +13,7 @@ import { NursingView } from "./modules/nursing/NursingView";
 import { BillingView } from "./modules/billing/BillingView";
 import { PharmacyView } from "./modules/pharmacy/PharmacyView";
 import { AppointmentsView } from "./modules/appointments/AppointmentsView";
+import { AccountingView } from "./modules/accounting/AccountingView";
 
 interface ModuleCard {
   id: string;
@@ -174,6 +175,18 @@ const Dashboard: React.FC = () => {
                 <span className="w-2 h-2 rounded-full bg-cyan-600"></span>
                 Appointments
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveModule("accounting")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "accounting"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                General Ledger
+              </button>
             </nav>
           </div>
 
@@ -210,6 +223,8 @@ const Dashboard: React.FC = () => {
           <PharmacyView />
         ) : activeModule === "appointments" ? (
           <AppointmentsView />
+        ) : activeModule === "accounting" ? (
+          <AccountingView />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -279,7 +294,8 @@ const Dashboard: React.FC = () => {
                     mod.id === "nursing" ||
                     mod.id === "billing" ||
                     mod.id === "pharmacy" ||
-                    mod.id === "appointments";
+                    mod.id === "appointments" ||
+                    mod.id === "accounting";
                   return (
                     <div
                       key={mod.id}
