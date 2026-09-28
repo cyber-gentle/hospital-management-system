@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hims-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hims}
+      POSTGRES_USER: ${POSTGRES_USER:-hims_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hims_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hims_app} -d ${POSTGRES_DB:-hims}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  core-go:
+    build:
+      context: ./services/core-go
+      dockerfile: Dockerfile
+    container_name: hims-core-go
+    restart: unless-stopped
+    ports:
+      - "${CORE_GO_PORT:-8080}:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://${POSTGRES_USER:-hims_app}:${POSTGRES_PASSWORD:-hims_dev_password}@postgres:5432/${POSTGRES_DB:-hims}?sslmode=disable"
+      JWT_SECRET: ${JWT_SECRET:-dev_insecure_jwt_secret_key_32bytes_long}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-dev_internal_service_key_secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  interop-py:
+    build:
+      context: ./services/interop-py
+      dockerfile: Dockerfile
+    container_name: hims-interop-py
+    restart: unless-stopped
+    ports:
+      - "${INTEROP_PY_PORT:-8000}:8000"
+    environment:
+      PORT: "8000"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-hims_app}:${POSTGRES_PASSWORD:-hims_dev_password}@postgres:5432/${POSTGRES_DB:-hims}"
+      CORE_SERVICE_URL: "http://core-go:8080"
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-dev_internal_service_key_secret}
+      JWT_SECRET: ${JWT_SECRET:-dev_insecure_jwt_secret_key_32bytes_long}
+    depends_on:
+      - core-go
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hims-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    environment:
+      VITE_CORE_API_URL: "http://localhost:8080"
+      VITE_INTEROP_API_URL: "http://localhost:8000"
+    depends_on:
+      - core-go
+      - interop-py
+
+volumes:
+  pgdata:
+    driver: local
