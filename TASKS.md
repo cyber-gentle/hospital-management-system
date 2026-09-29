@@ -34,6 +34,149 @@
 - [x] Set up CI pipeline (lint + type-check + test for both services on PR)
 - [x] Set up local dev environment (`docker-compose.yml` — both services + Postgres + reverse proxy)
 
+### 0.1 Repo audit follow-ups (2026-09-28)
+
+Findings from a full repo audit, ordered by severity. Steps 1 is complete;
+the rest are outstanding. See the audit notes for file/line references.
+
+**Step 1 — authentication and secret handling (DONE)**
+- [x] Fix `/api/v1/auth/login`: it issued a valid JWT for *any* password and
+      embedded a client-supplied `role`, so `{"role":"ADMIN"}` minted an admin
+      token. Now looks the user up, verifies bcrypt, and takes role/department
+      from the stored record only.
+- [x] Stop failing open on secrets: `JWT_SECRET` and `INTERNAL_SERVICE_KEY` had
+      hard-coded development fallbacks published in this repo. Both services now
+      refuse to start without real secrets (`internal/config`, `config.py`).
+- [x] **Verified:** `PostgresUserStore.FindByUsername`'s SQL is now covered by
+      `internal/auth/store_integration_test.go` against a real PostgreSQL —
+      field mapping, `ErrUserNotFound` for unknown and for soft-deleted users,
+      plus the full login path (including a `{"role":"ADMIN"}` injection attempt)
+      through real SQL. `TEST_DATABASE_URL` gates these; CI now sets it.
+
+**Step 2 — test mandates from AGENTS.md (DONE)**
+- [x] Unit + integration tests for the audit-log writer.
+      `internal/auditlog/writer_integration_test.go` covers the entry
+      round-trip, service/status defaults, nil-details normalisation, the
+      marshal-failure path, error propagation, and — the point of the exercise —
+      that the append-only UPDATE/DELETE triggers actually fire.
+- [x] Cross-service integration test: `tests/test_cross_service.py` builds and
+      runs the real `core-go` binary, points a real `CoreServiceClient` at it
+      over real HTTP, confirms a bad internal key gets **401** (not 404, which
+      would mean the path is wrong), and then verifies the audit row landed in
+      PostgreSQL by querying it directly. Also proves `/internal/authz/check`
+      answers from `role_permissions` rather than the Go fallback matrix.
+      Mutation-checked: repointing the client at `/internal/v1/audit-log` fails
+      the suite, so it genuinely covers the boundary.
+- [x] Added a `postgres:16` service to both backend CI jobs, with
+      `TEST_DATABASE_URL` wired to the test step. The Python job also installs
+      Go, since the cross-service test compiles the core service.
+      Both tests skip cleanly when `TEST_DATABASE_URL` is unset (verified:
+      13 Go tests skip, 8 Python tests skip).
+
+**Step 3 — spec/implementation drift (DONE)**
+- [x] Internal routes were `/internal/v1/...` in `10_API_ROUTES.md` but
+      `/internal/audit-log` and `/internal/authz/check` in code. Aligned the
+      **doc to the code**: both services already agreed with each other, the
+      paths are pinned by the new cross-service test, and the internal API is
+      deployed as one unit from a single compose file — so a version prefix
+      protects no independent consumer. The doc's convention note now says so
+      explicitly rather than leaving the omission looking like an oversight.
+- [x] `10_API_ROUTES.md` §"Go Core Service" heading said 14 modules while
+      listing 17 (and the same file's own header already said 17). Corrected to
+      17 and re-counted against the list.
+- [ ] `files/` is an untracked stale duplicate of the root docs (`AGENTS.md`,
+      `ARCHITECTURE.md`, `PRD.md`, `10_API_ROUTES.md` byte-identical;
+      `TASKS.md` already behind). Editing the root copy widens the gap. Needs a
+      decision: delete, gitignore, or leave — rule 1 means asking first.
+- [ ] Not yet checked: whether the *public* routes in `10_API_ROUTES.md` match
+      what is implemented. Step 3 only covered the internal routes. Spot-check
+      is cheap now that the internal ones are pinned by tests; a full pass
+      belongs with the module build-out.
+
+**Step 4 — needs a human decision (see PRD.md "Two integration decisions")**
+- [x] **DECIDED 2026-09-28:** discharge-checklist → billing trigger is **100%
+      completion only**, with no nurse sign-off gate. Recorded in `ASSUMPTIONS.md`
+      together with the fact that this **deliberately differs** from the billing
+      client material (which says 100% *plus* sign-off) — so nobody later
+      "corrects" it back. `PRD.md` updated from `[UNRESOLVED]` to resolved.
+- [x] **DECIDED 2026-09-28:** admission deposit gate is a **backend flag,
+      enforced at the API layer**, no hard UI lock, A&E exempt. Recorded in
+      `ASSUMPTIONS.md`. *Corrected 2026-09-29:* an earlier note here said no
+      client material covered this. Wrong — the design `.docx` does, and it
+      names the enforcement point: the deposit must be paid "before the nurse
+      or Doctor can access their folder". The decision stands (an API-enforced
+      flag is what produces that behaviour), but the gate must cover clinician
+      folder access, not just admission intake. See `ASSUMPTIONS.md`.
+- [x] Created `ASSUMPTIONS.md`, which `TASKS.md` §1 called for. It separates
+      **DECIDED** entries from **ASSUMED** ones, since only the former are safe
+      to build against without further validation.
+- [ ] Create the `docs/` directory. `PRD.md`, `ARCHITECTURE.md`, `TASKS.md` and
+      `AGENTS.md` all reference `docs/01_PRD.md`, `02_BRD.md`, `03_SRS.md`,
+      `04_TECH_STACK.md`, `05_DATABASE_SCHEMA.md`, `06_SECURITY_RBAC.md` and
+      `08_ROADMAP_PHASES.md`; none exist. The content appears to be in the
+      untracked `PROJECT University Teaching Hospital Software Design.docx`.
+- [ ] Decide whether the untracked client material (≈36MB of mockup PNGs, the
+      `.docx`, and the stale `files/` doc copy) is committed, moved, or
+      gitignored — and check it for real patient data before `git add -A`.
+      *Owner chose 2026-09-28 to commit it as design reference; blocked on the
+      patient-data sweep below.*
+- [ ] **Patient-data sweep before committing the client material (rule 7).**
+      The mockup screens show a real institution's name (`FUHSI TEACHING
+      HOSPITAL`) in the UI chrome, and patient rows with names, hospital
+      numbers, and vitals. These read as synthetic demo data, but "reads as
+      synthetic" is not a check. Confirm the names/IDs are fabricated (or
+      replace them) before any of these images enter git history, where they
+      cannot be removed cleanly.
+
+**Lower severity, still open**
+- [x] CI pinned Go 1.22 while `go.mod` requires 1.25.0 — the Go job could not
+      build at all. Now reads the version from `go.mod` via `go-version-file`,
+      so it cannot drift behind again.
+- [ ] No linter in CI: `golangci-lint` and `ruff`/`mypy` are still absent
+      despite AGENTS.md requiring lint-clean code. CI runs `go vet` and
+      `py_compile` (syntax only). *Partly addressed:* a `gofmt -l` check was
+      added to the Go job; the Python side and the fuller linters remain.
+- [ ] No reverse proxy in either compose file, though ARCHITECTURE.md and §0
+      above both call for one; `vite.config.ts` proxies `/api` to `:8080` only,
+      so Lab/NHIA/Radiology routes 404 through the dev proxy.
+- [ ] Two near-identical compose files (root and `infra/`) that have already
+      drifted once. Consolidate — AGENTS.md rule 1 means asking before deleting.
+- [x] `auditlog.Writer.Record` silently wrote `{}` if `json.Marshal` failed,
+      still recording SUCCESS. Now normalises nil details to `{}` and returns a
+      wrapped error for details that cannot be encoded, rather than storing a
+      record that looks complete but has lost its payload.
+- [ ] **Needs a decision (rule 1 — do not edit migrations unasked):** the first
+      migration opens with `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` and
+      `"pgcrypto"`, but neither is used anywhere — there are zero calls to
+      `uuid_generate_v4()`, no `pgcrypto` functions, and the two `DEFAULT
+      gen_random_uuid()` columns rely on the built-in (PG13+), not pgcrypto.
+      Removing those two lines would make the schema portable to any PG13+
+      without contrib. Verified: with those two lines stripped, the rest of the
+      migration applies cleanly to an empty database with `ON_ERROR_STOP=1`.
+      CI is unaffected either way — the official `postgres:16` image ships both
+      extension control files (checked against the actual `postgresql-16`
+      package). Proposal: delete the two lines. Awaiting confirmation.
+- [x] `HandleAuthzCheck` fell back to a hard-coded matrix on any DB error, giving
+      two permission implementations that could drift from `role_permissions`.
+      The fallback is **gone**: the table is now the only authority, and a failed
+      lookup returns 503 with no `allowed` field rather than a guess. Note an
+      *unseeded* table was never the fallback's trigger — that returns a real
+      `false`; only genuine query errors were. The `ADMIN` universal-access
+      override is kept (a fresh deployment would otherwise lock out its admins)
+      and is now pinned by its own test. Covered by the new
+      `internalapi/handler_integration_test.go`.
+- [x] CORS in `interop-py/main.py` used `allow_origins=["*"]` with
+      `allow_credentials=True` — Starlette echoes the caller's origin back with
+      `Allow-Credentials: true`, so any site could make authenticated requests
+      as a logged-in user. Now read from `CORS_ALLOWED_ORIGINS`, defaulting to
+      the Vite dev origin, with `*` rejected as a startup error.
+- [ ] `audit_logs` has both `timestamp` and `created_at` (redundant).
+- [ ] Append-only audit enforcement uses triggers, not the DB-role grant
+      ARCHITECTURE.md specifies — an undocumented deviation (functionally
+      equivalent, arguably stronger, but the doc should say so).
+- [ ] No frontend test runner.
+
+
 ## 1. Requirements Assumptions (no hospital contact until full build is done)
 
 Since hospital validation won't happen until after the complete system is

@@ -79,12 +79,19 @@ patient record and billing engine are stable — they depend on it.
 ## Two integration decisions that MUST be resolved before implementing (do not guess)
 
 1. **Discharge → Billing trigger**: threshold for discharge checklist
-   completion before invoice generation. **[UNRESOLVED — ask before coding this]**
+   completion before invoice generation. **[RESOLVED 2026-09-28 —
+   decided: 100% checklist completion, no nurse sign-off gate. See
+   `ASSUMPTIONS.md` — note this deliberately differs from the billing
+   client material, which is not authoritative.]**
 2. **Admission deposit gate**: hard UI lock in Nursing module vs. backend
-   flag. A&E is always exempt. **[UNRESOLVED — ask before coding this]**
+   flag. A&E is always exempt. **[RESOLVED 2026-09-28 — decided:
+   backend flag, enforced at the API layer, no hard UI lock. See
+   `ASSUMPTIONS.md`.]**
 
-If asked to implement either of these without a decision on record, stop
-and ask rather than picking an implementation.
+Both decisions are recorded in full in `ASSUMPTIONS.md`, including the
+open sub-questions that remain unanswered. Any further change to either
+behaviour should be recorded there as a new decision rather than made
+silently.
 
 ## Detailed functional requirements
 
