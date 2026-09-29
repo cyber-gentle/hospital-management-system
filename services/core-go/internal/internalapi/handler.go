@@ -2,6 +2,7 @@ package internalapi
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"strings"
 
@@ -22,10 +23,11 @@ func NewHandler(db *sql.DB, auditWriter *auditlog.Writer) *Handler {
 	}
 }
 
-// RegisterRoutes mounts the internal endpoints with the internal service auth guard
-func (h *Handler) RegisterRoutes(router *gin.Engine) {
+// RegisterRoutes mounts the internal endpoints with the internal service auth
+// guard. internalKey is the shared secret the Python interop service presents.
+func (h *Handler) RegisterRoutes(router *gin.Engine, internalKey string) {
 	internal := router.Group("/internal")
-	internal.Use(auth.InternalServiceAuthRequired())
+	internal.Use(auth.InternalServiceAuthRequired(internalKey))
 	{
 		internal.POST("/audit-log", h.HandleAuditLog)
 		internal.GET("/authz/check", h.HandleAuthzCheck)
@@ -46,6 +48,14 @@ type AuditLogRequest struct {
 
 // HandleAuditLog receives audit logs from interop-py and writes them to the DB
 func (h *Handler) HandleAuditLog(c *gin.Context) {
+	if h.auditWriter == nil {
+		// Reached only if the handler was constructed without a writer. The
+		// server does not register these routes in that state, but returning a
+		// 503 is preferable to dereferencing nil if that ever changes.
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging is unavailable"})
+		return
+	}
+
 	var req AuditLogRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -102,58 +112,38 @@ func (h *Handler) HandleAuthzCheck(c *gin.Context) {
 
 	permissionID := strings.ToLower(module + ":" + action)
 
-	var exists bool
-	if h.db != nil {
-		query := `
-			SELECT EXISTS (
-				SELECT 1 FROM role_permissions
-				WHERE role = $1 AND permission_id = $2
-			)`
-
-		err := h.db.QueryRowContext(c.Request.Context(), query, role, permissionID).Scan(&exists)
-		if err == nil {
-			c.JSON(http.StatusOK, gin.H{
-				"allowed":       exists,
-				"role":          role,
-				"permission_id": permissionID,
-				"source":        "database",
-			})
-			return
-		}
+	if h.db == nil {
+		// cmd/server/main.go does not register these routes without a database,
+		// so this is unreachable in practice. Refusing is still the right answer
+		// if that ever changes: an unavailable authority must never resolve to a
+		// permission decision.
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+		return
 	}
 
-	// Fallback check on standard role matrix if role_permissions table is still unseeded or db is nil
-	allowed := fallbackAuthzCheck(role, module, action)
+	const query = `
+		SELECT EXISTS (
+			SELECT 1 FROM role_permissions
+			WHERE role = $1 AND permission_id = $2
+		)`
+
+	var allowed bool
+	if err := h.db.QueryRowContext(c.Request.Context(), query, role, permissionID).Scan(&allowed); err != nil {
+		// Deliberately no fallback matrix here. A second, hard-coded copy of the
+		// permission rules drifts from role_permissions over time, and resolving
+		// a failed query to "allowed" would grant access the matrix never
+		// granted. Note that an *unseeded* table is not this case -- it returns a
+		// real `false`. This branch is a genuine infrastructure failure, so fail
+		// closed and let the caller retry rather than guessing an answer.
+		log.Printf("[AUTHZ] permission lookup failed for role=%q permission=%q: %v", role, permissionID, err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"allowed": allowed,
-		"role":    role,
-		"source":  "rule_fallback",
+		"allowed":       allowed,
+		"role":          role,
+		"permission_id": permissionID,
+		"source":        "database",
 	})
-}
-
-// fallbackAuthzCheck provides default rule mapping if DB permissions aren't seeded yet
-func fallbackAuthzCheck(role, module, action string) bool {
-	upperRole := strings.ToUpper(role)
-	lowerModule := strings.ToLower(module)
-
-	switch upperRole {
-	case "DOCTOR":
-		return lowerModule == "medicalrecords" || lowerModule == "gopd" || lowerModule == "laboratory" || lowerModule == "radiology"
-	case "NURSE":
-		return lowerModule == "nursing" || lowerModule == "medicalrecords" || lowerModule == "vitals"
-	case "PHARMACIST":
-		return lowerModule == "pharmacy" || lowerModule == "substore"
-	case "ACCOUNTANT", "CHIEF_ACCOUNTANT":
-		return lowerModule == "billing" || lowerModule == "accounting" || lowerModule == "nhia"
-	case "NHIA_OFFICER":
-		return lowerModule == "nhia" || lowerModule == "billing"
-	case "LAB_SCIENTIST":
-		return lowerModule == "laboratory"
-	case "RADIOLOGIST":
-		return lowerModule == "radiology"
-	case "AUDITOR":
-		return action == "view" || action == "read" || action == "inspect"
-	default:
-		return false
-	}
 }

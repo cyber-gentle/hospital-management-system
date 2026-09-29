@@ -3,13 +3,18 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// UserClaims defines custom claims embedded in the JWT token
+// tokenTTL is how long an issued access token remains valid.
+const tokenTTL = 24 * time.Hour
+
+// tokenIssuer identifies this service as the sole issuer of HIMS tokens.
+const tokenIssuer = "hims-core-go"
+
+// UserClaims defines custom claims embedded in the JWT token.
 type UserClaims struct {
 	UserID     string `json:"user_id"`
 	Username   string `json:"username"`
@@ -18,32 +23,42 @@ type UserClaims struct {
 	jwt.RegisteredClaims
 }
 
-func getJWTSecret() []byte {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "dev_insecure_jwt_secret_key_32bytes_long"
-	}
-	return []byte(secret)
+// TokenService issues and validates HIMS access tokens.
+//
+// The signing secret is injected rather than read from the environment on each
+// call, so a misconfigured service fails during startup (see internal/config)
+// instead of silently signing tokens with a placeholder value at request time.
+type TokenService struct {
+	secret []byte
+	ttl    time.Duration
 }
 
-// GenerateToken creates a signed JWT for the authenticated user (valid for 24 hours)
-func GenerateToken(userID, username, role, department string) (string, error) {
+// NewTokenService returns a TokenService that signs with the given secret.
+func NewTokenService(secret []byte) *TokenService {
+	return &TokenService{secret: secret, ttl: tokenTTL}
+}
+
+// Generate creates a signed JWT for the authenticated user. The caller is
+// responsible for passing the role and department recorded against the user in
+// the database — never a value supplied by the client.
+func (s *TokenService) Generate(userID, username, role, department string) (string, error) {
+	now := time.Now().UTC()
 	claims := UserClaims{
 		UserID:     userID,
 		Username:   username,
 		Role:       role,
 		Department: department,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "hims-core-go",
+			Issuer:    tokenIssuer,
 			Subject:   userID,
 			Audience:  jwt.ClaimStrings{"hims-clients"},
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(now.Add(s.ttl)),
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString(getJWTSecret())
+	signedToken, err := token.SignedString(s.secret)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
@@ -51,15 +66,20 @@ func GenerateToken(userID, username, role, department string) (string, error) {
 	return signedToken, nil
 }
 
-// ValidateToken parses and verifies the signature and expiration of a JWT
-func ValidateToken(tokenStr string) (*UserClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &UserClaims{}, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-		}
-		return getJWTSecret(), nil
-	})
-
+// Validate parses and verifies the signature, issuer, and expiration of a JWT.
+func (s *TokenService) Validate(tokenStr string) (*UserClaims, error) {
+	token, err := jwt.ParseWithClaims(
+		tokenStr,
+		&UserClaims{},
+		func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return s.secret, nil
+		},
+		jwt.WithIssuer(tokenIssuer),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
