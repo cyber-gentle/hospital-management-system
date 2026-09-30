@@ -24,15 +24,15 @@
 - [x] Set up Go core service skeleton (Gin/Echo/Fiber — pick one)
 - [x] Set up Python interop service skeleton (FastAPI)
 - [x] Set up frontend (React + Tailwind) project skeleton
-- [ ] Set up PostgreSQL — single shared instance, Go owns migrations
-- [ ] Set up `audit_logs` table + append-only DB role permissions (Go-owned)
-- [ ] Build the Go auth module (JWT issuance) + base RBAC middleware
-- [ ] Build Go's `/internal/audit-log` and `/internal/authz/check` endpoints
+- [x] Set up PostgreSQL — single shared instance, Go owns migrations
+- [x] Set up `audit_logs` table + append-only DB role permissions (Go-owned)
+- [x] Build the Go auth module (JWT issuance) + base RBAC middleware
+- [x] Build Go's `/internal/audit-log` and `/internal/authz/check` endpoints
       — these must exist before any Python module work starts
-- [ ] Build Python's `core_client.py` — verify it can successfully call
+- [x] Build Python's `core_client.py` — verify it can successfully call
       both internal Go endpoints before writing any Lab/NHIA/Radiology logic
-- [ ] Set up CI pipeline (lint + type-check + test for both services on PR)
-- [ ] Set up local dev environment (`docker-compose.yml` — both services + Postgres + reverse proxy)
+- [x] Set up CI pipeline (lint + type-check + test for both services on PR)
+- [x] Set up local dev environment (`docker-compose.yml` — both services + Postgres + reverse proxy)
 
 ## 1. Requirements Assumptions (no hospital contact until full build is done)
 
