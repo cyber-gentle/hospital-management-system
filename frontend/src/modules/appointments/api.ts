@@ -1,3 +1,4 @@
+import { fallbackFetch, rethrowBackendRejection } from '../../lib/fallback';
 import {
   Appointment,
   AppointmentFilter,
@@ -18,11 +19,12 @@ function getStoredDoctors(): Doctor[] {
     const raw = localStorage.getItem(STORAGE_KEY_DOCTORS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_DOCTORS, JSON.stringify(MOCK_DOCTORS));
-      return MOCK_DOCTORS;
+      return structuredClone(MOCK_DOCTORS);
     }
     return JSON.parse(raw) as Doctor[];
-  } catch {
-    return MOCK_DOCTORS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(MOCK_DOCTORS);
   }
 }
 
@@ -31,11 +33,12 @@ function getStoredSlots(): AvailabilitySlot[] {
     const raw = localStorage.getItem(STORAGE_KEY_SLOTS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(MOCK_SLOTS));
-      return MOCK_SLOTS;
+      return structuredClone(MOCK_SLOTS);
     }
     return JSON.parse(raw) as AvailabilitySlot[];
-  } catch {
-    return MOCK_SLOTS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(MOCK_SLOTS);
   }
 }
 
@@ -52,11 +55,12 @@ function getStoredAppointments(): Appointment[] {
     const raw = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_APPOINTMENTS, JSON.stringify(MOCK_APPOINTMENTS));
-      return MOCK_APPOINTMENTS;
+      return structuredClone(MOCK_APPOINTMENTS);
     }
     return JSON.parse(raw) as Appointment[];
-  } catch {
-    return MOCK_APPOINTMENTS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(MOCK_APPOINTMENTS);
   }
 }
 
@@ -80,15 +84,34 @@ export const appointmentsApi = {
       const params = new URLSearchParams();
       if (doctorId) params.set("doctorId", doctorId);
       if (date) params.set("date", date);
-      const res = await fetch(`/api/v1/appointments/availability?${params.toString()}`);
+      const res = await fallbackFetch(`/api/v1/appointments/availability?${params.toString()}`);
       if (res.ok) {
         return (await res.json()) as AvailabilitySlot[];
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback to local storage
     }
 
     let slots = getStoredSlots();
+    // Extend the demo roster without replacing previously booked slots.
+    const start = date ? new Date(`${date}T12:00:00Z`) : new Date();
+    for (let offset = 0; offset < (date ? 1 : 14); offset++) {
+      const day = new Date(start);
+      day.setUTCDate(day.getUTCDate() + offset);
+      const dayKey = day.toISOString().slice(0, 10);
+      const weekday = day.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+      for (const doctor of getStoredDoctors().filter(d => d.availableDays.includes(weekday))) {
+        if (slots.some(s => s.doctorId === doctor.id && s.date === dayKey)) continue;
+        for (let minutes = 540; minutes < 720; minutes += 30) {
+          const time = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+          slots.push({ id: `slot-${doctor.id}-${dayKey}-${minutes}`, doctorId: doctor.id, doctorName: doctor.name,
+            date: dayKey, startTime: time(minutes), endTime: time(minutes + 30), status: 'AVAILABLE',
+            maxCapacity: doctor.maxPatientsPerSlot, currentBookings: 0, clinicRoom: doctor.roomNumber });
+        }
+      }
+    }
+    setStoredSlots(slots);
     if (doctorId) {
       slots = slots.filter((s) => s.doctorId === doctorId);
     }
@@ -101,11 +124,12 @@ export const appointmentsApi = {
   // FR-AP-02 & FR-AP-05: List appointments with filtering (including GOPD queue separation)
   getAppointments: async (filter?: AppointmentFilter): Promise<Appointment[]> => {
     try {
-      const res = await fetch("/api/v1/appointments");
+      const res = await fallbackFetch("/api/v1/appointments");
       if (res.ok) {
         return (await res.json()) as Appointment[];
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -156,7 +180,7 @@ export const appointmentsApi = {
   // FR-AP-02: Book Appointment (linked to Medical Records)
   bookAppointment: async (req: BookAppointmentRequest): Promise<Appointment> => {
     try {
-      const res = await fetch("/api/v1/appointments", {
+      const res = await fallbackFetch("/api/v1/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(req),
@@ -164,12 +188,19 @@ export const appointmentsApi = {
       if (res.ok) {
         return (await res.json()) as Appointment;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
     const appointments = getStoredAppointments();
     const slots = getStoredSlots();
+    if (req.queueType !== 'GOPD_WALK_IN') {
+      const slot = slots.find(s => s.id === req.slotId);
+      if (!slot || slot.doctorId !== req.doctorId || slot.date !== req.date || slot.startTime !== req.startTime || slot.endTime !== req.endTime || slot.status !== 'AVAILABLE' || slot.currentBookings >= slot.maxCapacity) {
+        throw new Error('The selected appointment slot is unavailable or does not match the doctor and date.');
+      }
+    }
 
     // Mark slot as booked if it's a scheduled appointment
     if (req.slotId && req.slotId !== "slot-walkin") {
@@ -179,7 +210,7 @@ export const appointmentsApi = {
         if (targetSlot) {
           slots[slotIndex] = {
             ...targetSlot,
-            status: "BOOKED",
+            status: targetSlot.currentBookings + 1 >= targetSlot.maxCapacity ? "BOOKED" : "AVAILABLE",
             currentBookings: targetSlot.currentBookings + 1,
           };
           setStoredSlots(slots);
@@ -192,7 +223,7 @@ export const appointmentsApi = {
     const prefix = req.queueType === "GOPD_WALK_IN" ? "GOPD-2026-W" : "APT-2026-";
 
     const newAppointment: Appointment = {
-      id: `apt-${Date.now()}`,
+      id: `apt-${crypto.randomUUID()}`,
       appointmentNumber: `${prefix}${serial}`,
       patientId: req.patientId,
       patientMrn: req.patientMrn,
@@ -229,8 +260,9 @@ export const appointmentsApi = {
 
   // FR-AP-03: Reschedule Appointment
   rescheduleAppointment: async (req: RescheduleRequest): Promise<Appointment> => {
+    if (!req.reason.trim()) throw new Error('A reschedule reason is required.');
     try {
-      const res = await fetch(`/api/v1/appointments/${req.appointmentId}`, {
+      const res = await fallbackFetch(`/api/v1/appointments/${req.appointmentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -245,7 +277,8 @@ export const appointmentsApi = {
       if (res.ok) {
         return (await res.json()) as Appointment;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -261,6 +294,9 @@ export const appointmentsApi = {
     }
 
     const slots = getStoredSlots();
+    if (currentApt.status === 'CANCELLED' || currentApt.status === 'COMPLETED') throw new Error('Appointment is closed.');
+    const destination = slots.find(s => s.id === req.newSlotId);
+    if (!destination || destination.doctorId !== currentApt.doctorId || destination.date !== req.newDate || destination.startTime !== req.newStartTime || destination.endTime !== req.newEndTime || destination.status !== 'AVAILABLE' || destination.currentBookings >= destination.maxCapacity) throw new Error('The new slot is unavailable or does not match the appointment.');
 
     // Release old slot if booked
     const oldSlotIndex = slots.findIndex((s) => s.id === currentApt.slotId);
@@ -282,7 +318,7 @@ export const appointmentsApi = {
       if (newSlot) {
         slots[newSlotIndex] = {
           ...newSlot,
-          status: "BOOKED",
+          status: newSlot.currentBookings + 1 >= newSlot.maxCapacity ? "BOOKED" : "AVAILABLE",
           currentBookings: newSlot.currentBookings + 1,
         };
       }
@@ -311,8 +347,9 @@ export const appointmentsApi = {
 
   // FR-AP-03: Cancel Appointment (mandatory reason)
   cancelAppointment: async (req: CancelRequest): Promise<Appointment> => {
+    if (!req.reason.trim()) throw new Error('A cancellation reason is required.');
     try {
-      const res = await fetch(`/api/v1/appointments/${req.appointmentId}`, {
+      const res = await fallbackFetch(`/api/v1/appointments/${req.appointmentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -323,7 +360,8 @@ export const appointmentsApi = {
       if (res.ok) {
         return (await res.json()) as Appointment;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -337,6 +375,8 @@ export const appointmentsApi = {
     if (!currentApt) {
       throw new Error("Appointment not found");
     }
+
+    if (currentApt.status === 'CANCELLED') return currentApt;
 
     // Release slot
     const slots = getStoredSlots();

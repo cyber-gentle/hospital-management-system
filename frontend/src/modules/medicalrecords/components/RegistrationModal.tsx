@@ -37,6 +37,22 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
+
+  const handlePhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 512 * 1024) {
+      setError('Choose a JPEG, PNG or WebP photo no larger than 512 KB.');
+      event.target.value = '';
+      return;
+    }
+    setPhotoLoading(true);
+    const reader = new FileReader();
+    reader.onload = () => { setFormData(previous => ({ ...previous, photo_data_url: String(reader.result) })); setPhotoLoading(false); setError(null); };
+    reader.onerror = () => { setError('Unable to read the patient photo.'); setPhotoLoading(false); };
+    reader.readAsDataURL(file);
+  };
 
   if (!isOpen) return null;
 
@@ -54,6 +70,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (photoLoading) return;
     setError(null);
 
     // Validation
@@ -131,6 +148,11 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          <label className="block text-xs font-semibold text-slate-700">Patient photo (optional, up to 512 KB)
+            <input type="file" accept="image/jpeg,image/png,image/webp" capture="user" onChange={handlePhoto} className="block mt-2" />
+          </label>
+          {photoLoading && <p role="status">Reading photo…</p>}
+          {formData.photo_data_url && <img src={formData.photo_data_url} alt="Patient photo preview" className="w-24 h-28 object-cover rounded-lg" />}
           {/* Section 1: Demographics */}
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wider mb-3">
@@ -465,14 +487,14 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                disabled={loading}
+                disabled={loading || photoLoading}
                 className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || photoLoading}
                 className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50"
               >
                 {loading ? "Generating Record..." : "Register & Issue Card"}

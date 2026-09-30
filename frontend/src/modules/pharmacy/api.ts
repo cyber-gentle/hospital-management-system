@@ -17,11 +17,11 @@ function getStoredDrugs(): Drug[] {
     const raw = localStorage.getItem(DRUGS_STORAGE_KEY);
     if (!raw) {
       localStorage.setItem(DRUGS_STORAGE_KEY, JSON.stringify(INITIAL_DRUGS));
-      return INITIAL_DRUGS;
+      return structuredClone(INITIAL_DRUGS);
     }
     return JSON.parse(raw) as Drug[];
   } catch {
-    return INITIAL_DRUGS;
+    return structuredClone(INITIAL_DRUGS);
   }
 }
 
@@ -38,11 +38,11 @@ function getStoredPrescriptions(): Prescription[] {
     const raw = localStorage.getItem(RX_STORAGE_KEY);
     if (!raw) {
       localStorage.setItem(RX_STORAGE_KEY, JSON.stringify(INITIAL_PRESCRIPTIONS));
-      return INITIAL_PRESCRIPTIONS;
+      return structuredClone(INITIAL_PRESCRIPTIONS);
     }
     return JSON.parse(raw) as Prescription[];
   } catch {
-    return INITIAL_PRESCRIPTIONS;
+    return structuredClone(INITIAL_PRESCRIPTIONS);
   }
 }
 
@@ -187,8 +187,19 @@ export const pharmacyApi = {
 
     const rx = rxList[rxIndex];
     if (!rx) throw new Error('Prescription not found');
+    if (rx.status === 'cancelled' || rx.status === 'dispensed') throw new Error('Prescription is not open for dispensing');
+    if (!dispenseItems.length || new Set(dispenseItems.map(i => i.itemId)).size !== dispenseItems.length) throw new Error('Select distinct prescription items');
 
     const drugs = getStoredDrugs();
+    for (const disp of dispenseItems) {
+      const item = rx.items.find(i => i.id === disp.itemId);
+      const drug = drugs.find(d => d.id === item?.drugId);
+      if (!item || !drug || !Number.isInteger(disp.quantityToDispense) || disp.quantityToDispense <= 0 || disp.quantityToDispense > item.quantityPrescribed - item.quantityDispensed) {
+        throw new Error('Dispensing quantity must be positive and cannot exceed the remaining prescription');
+      }
+      const safety = await pharmacyApi.checkAllergySafety(rx, drug);
+      if (safety.requiresOverride && !overrideReason?.trim()) throw new Error('An allergy override reason is required');
+    }
 
     // 1. Verify and deduct stock for each dispensed item
     for (const disp of dispenseItems) {

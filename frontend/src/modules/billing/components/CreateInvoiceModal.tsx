@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchPatientOptions, PatientOption } from '../../medicalrecords/patientOptions';
+import { nursingApi } from '../../nursing/api';
+import type { InpatientAdmission } from '../../nursing/types';
 import { CreateInvoiceInput, PayerScheme, LineItemCategory } from '../types';
 import { billingApi } from '../api';
 
@@ -30,6 +33,19 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPullingNursing, setIsPullingNursing] = useState(false);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [patientId, setPatientId] = useState('');
+  const [admissions, setAdmissions] = useState<InpatientAdmission[]>([]);
+  const [admissionId, setAdmissionId] = useState('');
+  const [pulledAdmissionId, setPulledAdmissionId] = useState<string>();
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    Promise.all([fetchPatientOptions(), nursingApi.getAdmissions()]).then(([list, stays]) => {
+      if (active) { setPatients(list); setAdmissions(stays); }
+    }).catch(() => alert('Unable to load patient index.'));
+    return () => { active = false; };
+  }, [isOpen]);
 
   // Line items state
   const [items, setItems] = useState<DraftItem[]>([
@@ -69,7 +85,10 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
   const handlePullNursingCharges = async () => {
     setIsPullingNursing(true);
     try {
-      const extracted = await billingApi.pullConsolidatedNursingCharges('adm-001');
+      if (!admissionId) throw new Error('Select this patient’s admission first.');
+      const dossier = await nursingApi.getDischargeDossier(admissionId);
+      if (!dossier.canTriggerBilling) throw new Error('Complete the Nursing discharge checklist first.');
+      const extracted = await billingApi.pullConsolidatedNursingCharges(admissionId);
       const formatted: DraftItem[] = extracted.map((ex, idx) => ({
         id: `pulled-${Date.now()}-${idx}`,
         description: ex.description,
@@ -77,11 +96,12 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
         unitPrice: ex.unitPrice,
         quantity: ex.quantity
       }));
-      setItems([...items, ...formatted]);
+      setItems(formatted);
+      setPulledAdmissionId(admissionId);
       setNotes('Consolidated charges pulled automatically from completed nursing tasks & inpatient bed stay (FR-AC-06).');
     } catch (err) {
       console.error(err);
-      alert('Failed to pull nursing charges.');
+      alert(err instanceof Error ? err.message : 'Failed to pull nursing charges.');
     } finally {
       setIsPullingNursing(false);
     }
@@ -97,7 +117,7 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!patientName.trim() || !hospitalNumber.trim()) {
+    if (!patientId || !patientName.trim() || !hospitalNumber.trim()) {
       alert('Please fill out patient name and hospital number.');
       return;
     }
@@ -105,7 +125,8 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
     setIsSubmitting(true);
     try {
       const input: CreateInvoiceInput = {
-        patientId: `p-${Date.now().toString().slice(-4)}`,
+        patientId,
+        admissionId: pulledAdmissionId,
         patientName,
         hospitalNumber,
         payerScheme,
@@ -156,6 +177,25 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 text-sm">
+          <label className="block">Registered patient (MPI) *
+            <select aria-label="Billing patient" required value={patientId} className="w-full border rounded-lg p-2" onChange={e => {
+              const p = patients.find(patient => patient.id === e.target.value);
+              setPatientId(e.target.value); setPatientName(p ? `${p.firstName} ${p.lastName}` : ''); setHospitalNumber(p?.mrn || '');
+              setPayerScheme(p?.tariffType || 'Cash'); setNhiaNumber(p?.insuranceNumber || '');
+              setAdmissionId(''); setPulledAdmissionId(undefined);
+              setItems([{id:'1',description:'Consultant Clinical Consultation',category:'Consultation',unitPrice:15000,quantity:1}]);
+            }}><option value="">Select a registered patient</option>
+              {patients.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName} — {p.mrn}</option>)}
+            </select>
+          </label>
+          <label className="block">Admission for discharge charges
+            <select aria-label="Admission for discharge charges" value={admissionId} className="w-full border rounded-lg p-2" onChange={e => {
+              setAdmissionId(e.target.value); setPulledAdmissionId(undefined);
+              setItems([{id:'1',description:'Consultant Clinical Consultation',category:'Consultation',unitPrice:15000,quantity:1}]);
+            }}><option value="">Select an admission</option>
+              {admissions.filter(a => a.patientId === patientId).map(a => <option key={a.id} value={a.id}>{a.wardName} / {a.bedNumber} — {a.admissionDate.slice(0,10)}</option>)}
+            </select>
+          </label>
           {/* Patient Details & Payer Scheme */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -165,6 +205,7 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                 required
                 placeholder="e.g. Amina Bello"
                 value={patientName}
+                readOnly
                 onChange={(e) => setPatientName(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -177,6 +218,7 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                 required
                 placeholder="e.g. HIMS/2026/000102"
                 value={hospitalNumber}
+                readOnly
                 onChange={(e) => setHospitalNumber(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500"
               />

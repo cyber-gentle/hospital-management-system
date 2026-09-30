@@ -34,9 +34,7 @@ export const DischargeChecklistModal: React.FC<DischargeChecklistModalProps> = (
     try {
       const data = await nursingApi.getDischargeDossier(admissionId);
       setDossier(data);
-      if (data.billingInvoiceId) {
-        setGeneratedInvoiceId(data.billingInvoiceId);
-      }
+      setGeneratedInvoiceId(data.billingInvoiceId || null);
     } catch (err) {
       console.error(err);
     } finally {

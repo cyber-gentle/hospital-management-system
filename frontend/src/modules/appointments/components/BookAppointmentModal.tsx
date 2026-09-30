@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Search,
@@ -19,7 +19,7 @@ import {
   QueueType,
   ReminderPreference,
 } from "../types";
-import { MOCK_SEARCH_PATIENTS } from "../mockData";
+import { fetchPatientOptions, PatientOption } from '../../medicalrecords/patientOptions';
 
 interface BookAppointmentModalProps {
   isOpen: boolean;
@@ -70,13 +70,25 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
   const [reminderPreference, setReminderPreference] = useState<ReminderPreference>("BOTH");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    fetchPatientOptions().then(list => { if (active) setPatients(list); }).catch(() => { if (active) setErrorMsg('Unable to load the patient index.'); });
+    setSelectedPatient(null);
+    setPatientSearch('');
+    setSelectedDoctorId(preSelectedDoctor?.id || doctors[0]?.id || '');
+    setDate(preSelectedDate || new Date().toISOString().slice(0, 10));
+    setSelectedSlotId(preSelectedSlot?.id || '');
+    return () => { active = false; };
+  }, [isOpen, preSelectedDoctor, preSelectedSlot, preSelectedDate, doctors]);
 
   if (!isOpen) return null;
 
   // Search filtered patients
   const searchResults = patientSearch.trim() === ""
     ? []
-    : MOCK_SEARCH_PATIENTS.filter(
+    : patients.filter(
         (p) =>
           p.mrn.toLowerCase().includes(patientSearch.toLowerCase()) ||
           `${p.firstName} ${p.lastName}`.toLowerCase().includes(patientSearch.toLowerCase()) ||
@@ -89,7 +101,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
   const doctorDateSlots = availableSlots.filter(
     (s) =>
       s.doctorId === selectedDoctorId &&
-      (s.status === "AVAILABLE" || s.id === selectedSlotId)
+      s.date === date && s.status === "AVAILABLE"
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,6 +148,9 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
         startTime = doctorDateSlots[0].startTime;
         endTime = doctorDateSlots[0].endTime;
         slotId = doctorDateSlots[0].id;
+      } else {
+        setErrorMsg('No available slot for this doctor and date. Please choose another date.');
+        return;
       }
     }
 
@@ -294,6 +309,9 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
                     {searchResults.map((pat) => (
                       <div
                         key={pat.id}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedPatient(pat); setPatientSearch(''); } }}
                         onClick={() => {
                           setSelectedPatient(pat);
                           setPatientSearch("");
@@ -320,7 +338,7 @@ export const BookAppointmentModal: React.FC<BookAppointmentModalProps> = ({
                   <div className="text-xs text-slate-500 flex items-center gap-1.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                     <Search className="w-3.5 h-3.5 text-slate-400" />
                     <span>Quick Select: </span>
-                    {MOCK_SEARCH_PATIENTS.slice(0, 3).map((pat) => (
+                    {patients.slice(0, 3).map((pat) => (
                       <button
                         key={pat.id}
                         type="button"

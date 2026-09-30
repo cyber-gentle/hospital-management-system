@@ -37,7 +37,7 @@ export const BillingReconciliationView: React.FC<BillingReconciliationViewProps>
       setPostingId(item.id);
       await onPostReceiptToGl(item.id);
       setNotice(
-        `Successfully posted receipt ${item.receiptNumber} (₦${item.billingAmount.toLocaleString()}) to General Ledger TSA Account.`
+        `Successfully posted receipt ${item.receiptNumber} (₦${item.billingAmount.toLocaleString()}) to the General Ledger.`
       );
       onRefresh();
     } catch {

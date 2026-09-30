@@ -20,6 +20,7 @@ import {
   INITIAL_SHIFTS,
   INITIAL_DISCHARGES
 } from './mockData';
+import { billingApi } from '../billing/api';
 
 const STORAGE_KEYS = {
   WARDS: 'hims_nursing_wards_v1',
@@ -39,11 +40,11 @@ function getStored<T>(key: string, fallback: T): T {
     const raw = localStorage.getItem(key);
     if (!raw) {
       localStorage.setItem(key, JSON.stringify(fallback));
-      return fallback;
+      return structuredClone(fallback);
     }
     return JSON.parse(raw) as T;
   } catch {
-    return fallback;
+    return structuredClone(fallback);
   }
 }
 
@@ -109,9 +110,17 @@ export const nursingApi = {
 
   createAdmission: async (admissionData: Omit<InpatientAdmission, 'id' | 'admissionDate' | 'status'>): Promise<InpatientAdmission> => {
     const admissions = getStored<InpatientAdmission[]>(STORAGE_KEYS.ADMISSIONS, INITIAL_ADMISSIONS);
+    const selectedWard = getStored<Ward[]>(STORAGE_KEYS.WARDS, INITIAL_WARDS).find(w => w.id === admissionData.wardId);
+    if (!selectedWard?.beds.some(b => b.bedNumber === admissionData.bedNumber && b.status === 'available')) {
+      throw new Error('The selected bed is no longer available. Please select another bed.');
+    }
+    if (admissions.some(a => a.patientId === admissionData.patientId && a.status !== 'discharged')) {
+      throw new Error('This patient already has an active admission.');
+    }
     const newAdmission: InpatientAdmission = {
       ...admissionData,
-      id: `adm-${Date.now().toString().slice(-6)}`,
+      id: `adm-${crypto.randomUUID()}`,
+      depositStatus: selectedWard.id.includes('ae') ? 'exempt_ae' : admissionData.depositStatus,
       admissionDate: new Date().toISOString(),
       status: 'admitted'
     };
@@ -294,6 +303,27 @@ export const nursingApi = {
   },
 
   // FR-NS-07: Shift Handover
+  createShiftHandover: async (wardId: string, shift: ShiftHandover['shift'], outgoingNurse: string, generalWardNotes: string): Promise<ShiftHandover> => {
+    if (!outgoingNurse.trim() || !generalWardNotes.trim()) throw new Error('Outgoing nurse and ward summary are required.');
+    const ward = (await nursingApi.getWards()).find(w => w.id === wardId);
+    if (!ward) throw new Error('Ward not found');
+    const admissions = (await nursingApi.getAdmissions(wardId)).filter(a => a.status !== 'discharged');
+    const tasks = await nursingApi.getTasks();
+    const now = new Date().toISOString();
+    const handover: ShiftHandover = {
+      id: `sh-${crypto.randomUUID()}`, wardId, wardName: ward.name, shift,
+      handoverDate: now.slice(0, 10), outgoingNurse: outgoingNurse.trim(), outgoingSignedAt: now,
+      isDualSigned: false, generalWardNotes: generalWardNotes.trim(),
+      patientEndorsements: admissions.map(a => ({ admissionId: a.id, patientName: a.patientName,
+        bedNumber: a.bedNumber, acuity: a.triageAcuity, clinicalSummary: a.primaryDiagnosis,
+        pendingTasks: tasks.filter(t => t.admissionId === a.id && t.status !== 'completed').map(t => t.title).join('; ') || 'No pending tasks recorded',
+      })),
+    };
+    const shifts = getStored<ShiftHandover[]>(STORAGE_KEYS.SHIFTS, INITIAL_SHIFTS);
+    setStored(STORAGE_KEYS.SHIFTS, [handover, ...shifts]);
+    return handover;
+  },
+
   getShiftHandovers: async (wardId?: string): Promise<ShiftHandover[]> => {
     const shifts = getStored<ShiftHandover[]>(STORAGE_KEYS.SHIFTS, INITIAL_SHIFTS);
     if (wardId) {
@@ -304,6 +334,11 @@ export const nursingApi = {
 
   signShiftHandover: async (shiftId: string, incomingNurseName: string): Promise<ShiftHandover> => {
     const shifts = getStored<ShiftHandover[]>(STORAGE_KEYS.SHIFTS, INITIAL_SHIFTS);
+    const current = shifts.find(s => s.id === shiftId);
+    if (current?.isDualSigned) return current;
+    if (!incomingNurseName.trim() || current?.outgoingNurse.toLowerCase() === incomingNurseName.trim().toLowerCase()) {
+      throw new Error('A different incoming nurse must counter-sign the handover.');
+    }
     let updatedShift: ShiftHandover | undefined;
 
     const updated = shifts.map(s => {
@@ -326,7 +361,10 @@ export const nursingApi = {
 
   // FR-NS-08: Ward Management & Bed Maps
   getWards: async (): Promise<Ward[]> => {
-    return getStored<Ward[]>(STORAGE_KEYS.WARDS, INITIAL_WARDS);
+    return getStored<Ward[]>(STORAGE_KEYS.WARDS, INITIAL_WARDS).map(ward => ({ ...ward,
+      occupiedBeds: ward.beds.filter(b => b.status === 'occupied').length,
+      availableBeds: ward.beds.filter(b => b.status === 'available').length,
+    }));
   },
 
   // FR-NS-09 & FR-NS-10: Discharge Checklist & Billing Trigger Gate
@@ -338,6 +376,7 @@ export const nursingApi = {
     // Create a new template dossier if none exists yet
     const admissions = getStored<InpatientAdmission[]>(STORAGE_KEYS.ADMISSIONS, INITIAL_ADMISSIONS);
     const admission = admissions.find(a => a.id === admissionId);
+    if (!admission) throw new Error('Admission not found');
 
     const newDossier: DischargeDossier = {
       admissionId,
@@ -403,6 +442,7 @@ export const nursingApi = {
   },
 
   applyMatronOverride: async (admissionId: string, reason: string, matronName: string): Promise<DischargeDossier> => {
+    if (!reason.trim() || !matronName.trim()) throw new Error('Override requires a signatory and audit rationale.');
     const dossiers = getStored<DischargeDossier[]>(STORAGE_KEYS.DISCHARGES, INITIAL_DISCHARGES);
     let target: DischargeDossier | undefined;
 
@@ -430,11 +470,27 @@ export const nursingApi = {
     const dossiers = getStored<DischargeDossier[]>(STORAGE_KEYS.DISCHARGES, INITIAL_DISCHARGES);
     const dossier = dossiers.find(d => d.admissionId === admissionId);
 
-    if (!dossier || !dossier.canTriggerBilling) {
+    if (!dossier || !(dossier.items.every(item => item.completed) || (dossier.hasMatronOverride && dossier.matronOverrideReason?.trim() && dossier.matronOverrideBy?.trim()))) {
       throw new Error('Discharge checklist must be 100% complete (or have Matron override) before generating billing invoice');
     }
 
-    const invoiceId = `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+    if (dossier.billingTriggered && dossier.billingInvoiceId && dossier.dischargedAt) {
+      return { invoiceId: dossier.billingInvoiceId, dischargedAt: dossier.dischargedAt };
+    }
+    const admission = getStored<InpatientAdmission[]>(STORAGE_KEYS.ADMISSIONS, INITIAL_ADMISSIONS).find(a => a.id === admissionId);
+    if (!admission) throw new Error('Admission not found');
+    const items = await billingApi.pullConsolidatedNursingCharges(admissionId);
+    const invoice = await billingApi.createInvoice({
+      patientId: admission.patientId,
+      patientName: admission.patientName,
+      hospitalNumber: admission.hospitalNumber,
+      admissionId,
+      payerScheme: admission.tariffType,
+      nhiaNumber: admission.insuranceNumber,
+      items,
+      notes: 'Mock discharge consolidation. Tariffs are demonstration values.',
+    });
+    const invoiceId = invoice.invoiceNumber;
     const dischargedAt = new Date().toISOString();
 
     const updatedDossiers = dossiers.map(d => {
@@ -459,6 +515,15 @@ export const nursingApi = {
       return a;
     });
     setStored(STORAGE_KEYS.ADMISSIONS, updatedAdmissions);
+
+    const wards = getStored<Ward[]>(STORAGE_KEYS.WARDS, INITIAL_WARDS).map(ward => {
+      const beds = ward.beds.map(bed => bed.currentAdmissionId === admissionId ? {
+        ...bed, status: 'cleaning' as const, currentAdmissionId: undefined,
+        patientName: undefined, hospitalNumber: undefined, acuity: undefined, occupiedSince: undefined,
+      } : bed);
+      return { ...ward, beds, occupiedBeds: beds.filter(b => b.status === 'occupied').length, availableBeds: beds.filter(b => b.status === 'available').length };
+    });
+    setStored(STORAGE_KEYS.WARDS, wards);
 
     return { invoiceId, dischargedAt };
   }

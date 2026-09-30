@@ -9,6 +9,7 @@ export type NHIAScheme =
   | "PRIVATE_HMO";
 
 export interface Patient {
+  photo_data_url?: string;
   id: string;
   hospital_number: string;
   first_name: string;
@@ -36,6 +37,7 @@ export interface Patient {
 }
 
 export interface CreatePatientFormInput {
+  photo_data_url?: string;
   first_name: string;
   last_name: string;
   other_names?: string;
@@ -58,6 +60,7 @@ export interface CreatePatientFormInput {
 }
 
 export interface PatientIDCardData {
+  photo_data_url?: string;
   patient_id: string;
   hospital_number: string;
   full_name: string;

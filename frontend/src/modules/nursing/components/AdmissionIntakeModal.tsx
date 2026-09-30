@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchPatientOptions, PatientOption } from '../../medicalrecords/patientOptions';
 import { InpatientAdmission, Ward, TriageAcuity, DepositStatus } from '../types';
 
 interface AdmissionIntakeModalProps {
@@ -41,6 +42,16 @@ export const AdmissionIntakeModal: React.FC<AdmissionIntakeModalProps> = ({
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [patientId, setPatientId] = useState('');
+  const [loadError, setLoadError] = useState('');
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    fetchPatientOptions().then(list => { if (active) setPatients(list); }).catch(() => { if (active) setLoadError('Unable to load registered patients.'); });
+    setPatientId(''); setPatientName(''); setHospitalNumber(''); setSelectedBedNumber('');
+    return () => { active = false; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -64,7 +75,7 @@ export const AdmissionIntakeModal: React.FC<AdmissionIntakeModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!patientName.trim() || !hospitalNumber.trim() || !selectedBedNumber) {
+    if (!patientId || !patientName.trim() || !hospitalNumber.trim() || !selectedBedNumber) {
       alert('Please fill out patient details, hospital number, and select an available bed.');
       return;
     }
@@ -72,12 +83,12 @@ export const AdmissionIntakeModal: React.FC<AdmissionIntakeModalProps> = ({
     setIsSubmitting(true);
     try {
       await onAdmitPatient({
-        patientId: `p-${Date.now().toString().slice(-4)}`,
+        patientId,
         patientName,
         hospitalNumber,
         age,
         gender,
-        wardId: selectedWardId,
+        wardId: currentWard!.id,
         wardName: currentWard?.name || 'Inpatient Ward',
         bedNumber: selectedBedNumber,
         admittingDoctor: admittingDoctor || 'Dr. Consultant On-Call',
@@ -88,12 +99,13 @@ export const AdmissionIntakeModal: React.FC<AdmissionIntakeModalProps> = ({
         resuscitationStatus,
         bloodGroup,
         tariffType,
+        insuranceNumber: patients.find(p => p.id === patientId)?.insuranceNumber,
         admissionChecklist: checklist
       });
       onClose();
     } catch (err) {
       console.error(err);
-      alert('Failed to complete admission intake.');
+      alert(err instanceof Error ? err.message : 'Failed to complete admission intake.');
     } finally {
       setIsSubmitting(false);
     }
@@ -123,6 +135,18 @@ export const AdmissionIntakeModal: React.FC<AdmissionIntakeModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 text-sm">
+          <label className="block text-xs font-semibold text-slate-700">Registered patient (MPI) *
+            <select aria-label="Registered patient (MPI)" required value={patientId} className="w-full px-3 py-2 border rounded-lg" onChange={e => {
+              const p = patients.find(patient => patient.id === e.target.value);
+              setPatientId(e.target.value);
+              setPatientName(p ? `${p.firstName} ${p.lastName}` : ''); setHospitalNumber(p?.mrn || '');
+              if (p) { setAge(p.age); setGender(p.gender); setBloodGroup(p.bloodGroup); setTariffType(p.tariffType); }
+            }}>
+              <option value="">Select a registered patient</option>
+              {patients.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName} — {p.mrn}</option>)}
+            </select>
+          </label>
+          {loadError && <p role="alert">{loadError}</p>}
           {/* Section 1: Patient Demographics */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
@@ -137,6 +161,7 @@ export const AdmissionIntakeModal: React.FC<AdmissionIntakeModalProps> = ({
                   required
                   placeholder="e.g. Babatunde Fashola"
                   value={patientName}
+                  readOnly
                   onChange={(e) => setPatientName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-xs"
                 />
@@ -149,6 +174,7 @@ export const AdmissionIntakeModal: React.FC<AdmissionIntakeModalProps> = ({
                   required
                   placeholder="e.g. HIMS/2026/000115"
                   value={hospitalNumber}
+                  readOnly
                   onChange={(e) => setHospitalNumber(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-xs font-mono"
                 />

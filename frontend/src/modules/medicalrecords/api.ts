@@ -1,3 +1,4 @@
+import { rethrowBackendRejection } from '../../lib/fallback';
 import { apiRequest } from "../../lib/api";
 import {
   Patient,
@@ -13,12 +14,12 @@ function getLocalPatients(): Patient[] {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PATIENTS));
-    return INITIAL_PATIENTS;
+    return structuredClone(INITIAL_PATIENTS);
   }
   try {
     return JSON.parse(stored) as Patient[];
   } catch {
-    return INITIAL_PATIENTS;
+    return structuredClone(INITIAL_PATIENTS);
   }
 }
 
@@ -32,6 +33,7 @@ export async function fetchPatients(searchQuery?: string): Promise<{ patients: P
     const res = await apiRequest<{ patients: Patient[]; total: number }>(`/medical-records/patients${queryParam}`);
     return res;
   } catch (err) {
+    rethrowBackendRejection(err);
     // Graceful offline/local fallback
     console.info("[Medical Records API] Falling back to local state:", err);
     let list = getLocalPatients().filter((p) => p.is_active);
@@ -59,6 +61,7 @@ export async function createPatient(data: CreatePatientFormInput): Promise<Patie
     });
     return res;
   } catch (err) {
+    rethrowBackendRejection(err);
     console.info("[Medical Records API] Local patient registration fallback:", err);
     const local = getLocalPatients();
     const nextSeq = 10000 + local.length + 1;
@@ -66,6 +69,7 @@ export async function createPatient(data: CreatePatientFormInput): Promise<Patie
     const generatedHospNo = `HOSP/${currentYear}/${String(nextSeq).padStart(6, "0")}`;
 
     const newPatient: Patient = {
+      photo_data_url: data.photo_data_url,
       id: `pat_local_${Date.now()}`,
       hospital_number: generatedHospNo,
       first_name: data.first_name.trim(),
@@ -104,6 +108,7 @@ export async function fetchPatientIDCard(patientId: string): Promise<PatientIDCa
     });
     return res;
   } catch (err) {
+    rethrowBackendRejection(err);
     console.info("[Medical Records API] Local ID Card generation fallback:", err);
     const local = getLocalPatients();
     const patient = local.find((p) => p.id === patientId);
@@ -123,6 +128,7 @@ export async function fetchPatientIDCard(patientId: string): Promise<PatientIDCa
 
     return {
       patient_id: patient.id,
+      photo_data_url: patient.photo_data_url,
       hospital_number: patient.hospital_number,
       full_name: fullName,
       date_of_birth: patient.date_of_birth,
@@ -145,6 +151,7 @@ export async function fetchPaymentStatus(patientId: string): Promise<PaymentStat
     const res = await apiRequest<PaymentStatusData>(`/medical-records/patients/${patientId}/payment-status`);
     return res;
   } catch (err) {
+    rethrowBackendRejection(err);
     console.info("[Medical Records API] Local payment status fallback:", err);
     const local = getLocalPatients();
     const patient = local.find((p) => p.id === patientId);

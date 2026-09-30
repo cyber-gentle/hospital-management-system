@@ -68,6 +68,7 @@ export interface AllergyAlert {
 }
 
 export interface Prescription {
+  admissionId?: string;
   id: string;
   prescriptionNumber: string; // e.g. RX-2026-00412
   patientId: string;

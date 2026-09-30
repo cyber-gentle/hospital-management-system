@@ -8,6 +8,8 @@ import {
   PayerScheme
 } from './types';
 import { INITIAL_INVOICES } from './mockData';
+import type { InpatientAdmission, NursingTask, DischargeDossier } from '../nursing/types';
+import type { Prescription } from '../pharmacy/types';
 
 const STORAGE_KEY = 'hims_billing_invoices_v1';
 
@@ -16,11 +18,11 @@ function getStoredInvoices(): Invoice[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_INVOICES));
-      return INITIAL_INVOICES;
+      return structuredClone(INITIAL_INVOICES);
     }
     return JSON.parse(raw) as Invoice[];
   } catch {
-    return INITIAL_INVOICES;
+    return structuredClone(INITIAL_INVOICES);
   }
 }
 
@@ -75,6 +77,21 @@ export const billingApi = {
   // FR-AC-01: Create New Invoice (NHIA-aware co-pay calculation)
   createInvoice: async (input: CreateInvoiceInput): Promise<Invoice> => {
     const list = getStoredInvoices();
+    const existing = input.admissionId ? list.find(i => i.admissionId === input.admissionId && !i.isDeleted) : undefined;
+    if (existing) return existing;
+    if (input.admissionId) {
+      const admissions: InpatientAdmission[] = JSON.parse(localStorage.getItem('hims_nursing_admissions_v1') || '[]');
+      const admission = admissions.find(a => a.id === input.admissionId);
+      const dossiers: DischargeDossier[] = JSON.parse(localStorage.getItem('hims_nursing_discharges_v1') || '[]');
+      const dossier = dossiers.find(d => d.admissionId === input.admissionId);
+      if (!admission || admission.patientId !== input.patientId || !dossier || !(dossier.items.every(i => i.completed) || (dossier.hasMatronOverride && dossier.matronOverrideReason?.trim() && dossier.matronOverrideBy?.trim()))) {
+        throw new Error('The patient admission must have a complete discharge checklist or documented override.');
+      }
+    }
+    if (!input.items.length || input.items.some(i => !Number.isFinite(i.unitPrice) || i.unitPrice < 0 || !Number.isFinite(i.quantity) || i.quantity <= 0)) {
+      throw new Error('Invoice items require a valid price and positive quantity.');
+    }
+    if (input.depositApplied !== undefined && (!Number.isFinite(input.depositApplied) || input.depositApplied < 0)) throw new Error('Deposit must be a non-negative amount.');
     const isNhia = input.payerScheme === 'NHIA';
 
     // Calculate line items with NHIA 10% co-payment rule
@@ -102,7 +119,7 @@ export const billingApi = {
     const invoiceNumber = `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const newInvoice: Invoice = {
-      id: `inv-${Date.now()}`,
+      id: `inv-${crypto.randomUUID()}`,
       invoiceNumber,
       patientId: input.patientId,
       patientName: input.patientName,
@@ -143,12 +160,15 @@ export const billingApi = {
 
     const invoice = list[invoiceIndex];
     if (!invoice) throw new Error('Invoice not found');
+    if (invoice.isDeleted || invoice.status === 'cancelled' || paymentInput.invoiceId !== invoiceId || !Number.isFinite(paymentInput.amountPaid) || paymentInput.amountPaid <= 0 || paymentInput.amountPaid > invoice.balanceDue) {
+      throw new Error('Payment must be positive, within the outstanding balance, and for an active invoice.');
+    }
 
     const receiptNumber = `RCP-2026-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const newPayment: InvoicePayment = {
       ...paymentInput,
-      id: `pay-${Date.now()}`,
+      id: `pay-${crypto.randomUUID()}`,
       receiptNumber,
       paymentDate: new Date().toISOString()
     };
@@ -214,10 +234,11 @@ export const billingApi = {
       const admissionsRaw = localStorage.getItem('hims_nursing_admissions_v1');
       const tasksRaw = localStorage.getItem('hims_nursing_tasks_v1');
 
-      const admissions = admissionsRaw ? JSON.parse(admissionsRaw) : [];
-      const tasks = tasksRaw ? JSON.parse(tasksRaw) : [];
+      const admissions: InpatientAdmission[] = admissionsRaw ? JSON.parse(admissionsRaw) : [];
+      const tasks: NursingTask[] = tasksRaw ? JSON.parse(tasksRaw) : [];
 
       const targetAdm = admissions.find((a: { id: string }) => a.id === admissionId);
+      if (!targetAdm) throw new Error('Admission not found');
       const targetTasks = tasks.filter((t: { admissionId: string; status: string }) => t.admissionId === admissionId && t.status === 'completed');
 
       const items: Omit<InvoiceLineItem, 'id' | 'grossAmount' | 'nhiaCoveredAmount' | 'patientPayableAmount'>[] = [];
@@ -227,7 +248,7 @@ export const billingApi = {
         description: `Inpatient Bed & Nursing Care: ${targetAdm?.wardName || 'Ward'} (${targetAdm?.bedNumber || 'Bed'})`,
         category: 'Nursing / Bed',
         unitPrice: 12500,
-        quantity: 2,
+        quantity: Math.max(1, Math.ceil((Date.now() - Date.parse(targetAdm.admissionDate)) / 86400000)),
         source: 'nursing_discharge'
       });
 
@@ -252,6 +273,14 @@ export const billingApi = {
         }
       }
 
+      // Use only explicitly admission-linked dispensing; never import another stay's medicines.
+      const prescriptions: Prescription[] = JSON.parse(localStorage.getItem('hims_pharmacy_prescriptions_v1') || '[]');
+      for (const rx of prescriptions.filter(r => r.admissionId === admissionId && r.status !== 'cancelled')) {
+        for (const item of rx.items.filter(i => i.quantityDispensed > 0)) {
+          items.push({ description: `Dispensed: ${item.drugName} (${rx.prescriptionNumber})`, category: 'Pharmacy', unitPrice: item.unitPrice, quantity: item.quantityDispensed, source: 'pharmacy_dispense' });
+        }
+      }
+
       // 3. Discharge clinical summary fee
       items.push({
         description: 'Consultant Discharge Assessment & TTO Prescription',
@@ -262,24 +291,8 @@ export const billingApi = {
       });
 
       return items;
-    } catch {
-      // Fallback default charges
-      return [
-        {
-          description: 'Inpatient Bed & Routine Nursing Care (2 Days)',
-          category: 'Nursing / Bed',
-          unitPrice: 15000,
-          quantity: 2,
-          source: 'nursing_discharge'
-        },
-        {
-          description: 'Consultant Ward Round & Discharge Clearance',
-          category: 'Consultation',
-          unitPrice: 20000,
-          quantity: 1,
-          source: 'manual'
-        }
-      ];
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('Unable to read the admission charges');
     }
   },
 

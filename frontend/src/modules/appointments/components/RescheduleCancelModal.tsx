@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Calendar,
@@ -44,12 +44,17 @@ export const RescheduleCancelModal: React.FC<RescheduleCancelModalProps> = ({
   const [reason, setReason] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  useEffect(() => {
+    if (isOpen && appointment) {
+      setNewDate(appointment.date); setNewSlotId(''); setReason(''); setErrorMsg(null);
+    }
+  }, [isOpen, appointment]);
 
   if (!isOpen || !appointment) return null;
 
   // Filter slots for this doctor on the selected date that are available
   const doctorSlots = availableSlots.filter(
-    (s) => s.doctorId === appointment.doctorId && s.status === "AVAILABLE"
+    (s) => s.doctorId === appointment.doctorId && s.date === newDate && s.status === "AVAILABLE"
   );
 
   const handleSubmit = async (e: React.FormEvent) => {

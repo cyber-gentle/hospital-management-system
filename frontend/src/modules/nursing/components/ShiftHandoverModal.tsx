@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ShiftHandover } from '../types';
+import React, { useState, useEffect } from 'react';
+import { ShiftHandover, Ward } from '../types';
 import { nursingApi } from '../api';
 
 interface ShiftHandoverModalProps {
@@ -18,6 +18,24 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
   const [selectedShiftId, setSelectedShiftId] = useState<string>(handovers[0]?.id || '');
   const [incomingNurseName, setIncomingNurseName] = useState('Nurse K. Oshodi, RN');
   const [isSigning, setIsSigning] = useState(false);
+  const [wards, setWards] = useState<Ward[]>([]);
+  const [newWardId, setNewWardId] = useState('');
+  const [outgoingNurse, setOutgoingNurse] = useState('');
+  const [shift, setShift] = useState<ShiftHandover['shift']>('morning');
+  const [wardNotes, setWardNotes] = useState('');
+  useEffect(() => { if (isOpen) nursingApi.getWards().then(setWards); }, [isOpen]);
+
+  const handleCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSigning(true);
+    try {
+      const handover = await nursingApi.createShiftHandover(newWardId, shift, outgoingNurse, wardNotes);
+      setSelectedShiftId(handover.id);
+      setWardNotes('');
+      onHandoverUpdated();
+    } catch (error) { alert(error instanceof Error ? error.message : 'Unable to create handover'); }
+    finally { setIsSigning(false); }
+  };
 
   if (!isOpen) return null;
 
@@ -61,6 +79,23 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-6 text-sm">
+          <form onSubmit={handleCreate} className="p-3 border rounded-xl space-y-2">
+            <h3 className="font-bold">New outgoing handover</h3>
+            <label className="block">Ward
+              <select aria-label="Handover ward" required value={newWardId} onChange={e => setNewWardId(e.target.value)} className="w-full border rounded p-2">
+                <option value="">Choose ward</option>{wards.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </label>
+            <label className="block">Shift
+              <select aria-label="Outgoing shift" value={shift} onChange={e => setShift(e.target.value as ShiftHandover['shift'])} className="w-full border rounded p-2">
+                <option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night</option>
+              </select>
+            </label>
+            <label className="block">Outgoing nurse<input aria-label="Outgoing nurse" required value={outgoingNurse} onChange={e=>setOutgoingNurse(e.target.value)} className="w-full border rounded p-2" /></label>
+            <label className="block">Ward summary<textarea aria-label="Ward summary" required value={wardNotes} onChange={e=>setWardNotes(e.target.value)} className="w-full border rounded p-2" /></label>
+            <p className="text-xs">Includes current inpatients and their recorded pending tasks. Review the summary before signing.</p>
+            <button type="submit" disabled={isSigning} className="px-3 py-2 bg-blue-700 text-white rounded">Sign outgoing handover</button>
+          </form>
           {/* Shift Picker Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
             <div className="flex items-center gap-2">

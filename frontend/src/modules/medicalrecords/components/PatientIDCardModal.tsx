@@ -65,6 +65,7 @@ export const PatientIDCardModal: React.FC<PatientIDCardModalProps> = ({
             <div className="p-5 grid grid-cols-3 gap-4 items-center">
               {/* Photo / Avatar Placeholder */}
               <div className="col-span-1 flex flex-col items-center justify-center">
+                {cardData.photo_data_url ? <img src={cardData.photo_data_url} alt={`${cardData.full_name} patient photo`} className="w-24 h-28 rounded-xl object-cover" /> : (
                 <div className="w-24 h-28 rounded-xl bg-gradient-to-b from-slate-100 to-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 p-2 text-center shadow-inner">
                   <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm mb-1">
                     {cardData.full_name
@@ -75,6 +76,7 @@ export const PatientIDCardModal: React.FC<PatientIDCardModalProps> = ({
                   </div>
                   <span className="text-[9px] text-slate-500 font-medium">PHOTO</span>
                 </div>
+                )}
                 <span className="text-[10px] text-slate-500 font-bold mt-1 text-center">
                   {cardData.gender}
                 </span>

@@ -117,7 +117,8 @@ export const INITIAL_CHART_OF_ACCOUNTS: Account[] = [
     name: "Accumulated Hospital Operating Surplus",
     type: "EQUITY",
     description: "Cumulative retained surplus from internal generated revenue (IGR)",
-    balance: 56100000,
+    // Synthetic opening equity balances the demo trial balance (not a live ledger correction).
+    balance: 47150000,
     currency: "NGN",
     isActive: true,
   },

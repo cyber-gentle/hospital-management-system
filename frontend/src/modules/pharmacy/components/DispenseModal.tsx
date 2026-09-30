@@ -24,6 +24,7 @@ export const DispenseModal: React.FC<DispenseModalProps> = ({
 
   useEffect(() => {
     if (isOpen && prescription) {
+      setOverrideReason('');
       loadDrugsAndCheckAllergies();
       // Initialize dispense quantities to remaining prescribed
       const initialQty: { [itemId: string]: number } = {};

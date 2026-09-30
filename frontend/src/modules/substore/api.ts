@@ -1,3 +1,4 @@
+import { fallbackFetch, rethrowBackendRejection } from '../../lib/fallback';
 import {
   CreateRequisitionRequest,
   Requisition,
@@ -23,11 +24,12 @@ function getStoredSubstores(): Substore[] {
     const raw = localStorage.getItem(STORAGE_KEY_SUBSTORES);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_SUBSTORES, JSON.stringify(INITIAL_SUBSTORES));
-      return INITIAL_SUBSTORES;
+      return structuredClone(INITIAL_SUBSTORES);
     }
     return JSON.parse(raw) as Substore[];
-  } catch {
-    return INITIAL_SUBSTORES;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_SUBSTORES);
   }
 }
 
@@ -36,11 +38,12 @@ function getStoredItems(): SubstoreItem[] {
     const raw = localStorage.getItem(STORAGE_KEY_ITEMS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(INITIAL_SUBSTORE_ITEMS));
-      return INITIAL_SUBSTORE_ITEMS;
+      return structuredClone(INITIAL_SUBSTORE_ITEMS);
     }
     return JSON.parse(raw) as SubstoreItem[];
-  } catch {
-    return INITIAL_SUBSTORE_ITEMS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_SUBSTORE_ITEMS);
   }
 }
 
@@ -57,11 +60,12 @@ function getStoredRequisitions(): Requisition[] {
     const raw = localStorage.getItem(STORAGE_KEY_REQS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_REQS, JSON.stringify(INITIAL_REQUISITIONS));
-      return INITIAL_REQUISITIONS;
+      return structuredClone(INITIAL_REQUISITIONS);
     }
     return JSON.parse(raw) as Requisition[];
-  } catch {
-    return INITIAL_REQUISITIONS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_REQUISITIONS);
   }
 }
 
@@ -78,11 +82,12 @@ function getStoredAudits(): StockAdjustmentAuditEntry[] {
     const raw = localStorage.getItem(STORAGE_KEY_AUDITS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_AUDITS, JSON.stringify(INITIAL_STOCK_AUDIT_LOGS));
-      return INITIAL_STOCK_AUDIT_LOGS;
+      return structuredClone(INITIAL_STOCK_AUDIT_LOGS);
     }
     return JSON.parse(raw) as StockAdjustmentAuditEntry[];
-  } catch {
-    return INITIAL_STOCK_AUDIT_LOGS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_STOCK_AUDIT_LOGS);
   }
 }
 
@@ -104,12 +109,13 @@ export const substoreApi = {
   getSubstoreItems: async (substoreId?: string): Promise<SubstoreItem[]> => {
     try {
       if (substoreId) {
-        const res = await fetch(`/api/v1/substores/${substoreId}/items`);
+        const res = await fallbackFetch(`/api/v1/substores/${substoreId}/items`);
         if (res.ok) {
           return (await res.json()) as SubstoreItem[];
         }
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -141,7 +147,7 @@ export const substoreApi = {
 
   createRequisition: async (req: CreateRequisitionRequest): Promise<Requisition> => {
     try {
-      const res = await fetch(`/api/v1/substores/${req.substoreId}/requisitions`, {
+      const res = await fallbackFetch(`/api/v1/substores/${req.substoreId}/requisitions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(req),
@@ -149,7 +155,8 @@ export const substoreApi = {
       if (res.ok) {
         return (await res.json()) as Requisition;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -189,7 +196,7 @@ export const substoreApi = {
     fulfilledBy: string
   ): Promise<Requisition> => {
     try {
-      const res = await fetch(`/api/v1/substores/requisitions/${requisitionId}`, {
+      const res = await fallbackFetch(`/api/v1/substores/requisitions/${requisitionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "FULFILL", fulfilledBy }),
@@ -197,7 +204,8 @@ export const substoreApi = {
       if (res.ok) {
         return (await res.json()) as Requisition;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -207,6 +215,8 @@ export const substoreApi = {
 
     const currentReq = reqs[idx];
     if (!currentReq) throw new Error("Requisition not found");
+    if (currentReq.status === 'FULFILLED') return currentReq;
+    if (currentReq.status === 'REJECTED') throw new Error('Rejected requisitions cannot be fulfilled');
 
     const now = new Date().toISOString();
     const updatedReq: Requisition = {
@@ -224,11 +234,11 @@ export const substoreApi = {
     // Increase stock in the ward substore!
     const items = getStoredItems();
     for (const reqItem of updatedReq.items) {
-      const itemIdx = items.findIndex((i) => i.id === reqItem.itemId || i.itemCode === reqItem.itemCode);
+      const itemIdx = items.findIndex((i) => i.substoreId === currentReq.substoreId && (i.id === reqItem.itemId || i.itemCode === reqItem.itemCode));
       if (itemIdx >= 0) {
         const item = items[itemIdx];
         if (item) {
-          const newQty = item.currentStock + (reqItem.approvedQty || reqItem.requestedQty);
+          const newQty = item.currentStock + (reqItem.approvedQty ?? reqItem.requestedQty);
           items[itemIdx] = {
             ...item,
             currentStock: newQty,
@@ -246,7 +256,7 @@ export const substoreApi = {
   // FR-SS-04: Stock Adjustment with Mandatory Audit Log
   adjustStock: async (req: StockAdjustmentRequest): Promise<SubstoreItem> => {
     try {
-      const res = await fetch(
+      const res = await fallbackFetch(
         `/api/v1/substores/${req.substoreId}/items/${req.itemId}/adjust`,
         {
           method: "PATCH",
@@ -257,16 +267,18 @@ export const substoreApi = {
       if (res.ok) {
         return (await res.json()) as SubstoreItem;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
     if (!req.auditExplanation.trim()) {
       throw new Error("Mandatory audit log justification is required for all stock adjustments.");
     }
+    if (!Number.isFinite(req.newQuantity) || req.newQuantity < 0) throw new Error('Stock quantity must be a non-negative number');
 
     const items = getStoredItems();
-    const itemIdx = items.findIndex((i) => i.id === req.itemId);
+    const itemIdx = items.findIndex((i) => i.id === req.itemId && i.substoreId === req.substoreId);
     if (itemIdx === -1) throw new Error("Sub-store item not found");
 
     const currentItem = items[itemIdx];

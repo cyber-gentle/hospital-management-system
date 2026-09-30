@@ -24,6 +24,7 @@ export async function apiRequest<T>(
   const response = await fetch(url, {
     ...options,
     headers,
+    signal: options.signal ?? AbortSignal.timeout(5000),
   });
 
   if (!response.ok) {

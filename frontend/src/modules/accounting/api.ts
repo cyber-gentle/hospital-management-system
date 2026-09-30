@@ -1,3 +1,4 @@
+import { fallbackFetch, rethrowBackendRejection } from '../../lib/fallback';
 import {
   Account,
   BalanceSheetReport,
@@ -17,6 +18,7 @@ import {
   INITIAL_JOURNAL_VOUCHERS,
   INITIAL_RECONCILIATION_ITEMS,
 } from "./mockData";
+import { billingApi } from '../billing/api';
 
 const STORAGE_KEY_ACCOUNTS = "hims_accounting_accounts_v1";
 const STORAGE_KEY_JV = "hims_accounting_jv_v1";
@@ -28,11 +30,12 @@ function getStoredAccounts(): Account[] {
     const raw = localStorage.getItem(STORAGE_KEY_ACCOUNTS);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(INITIAL_CHART_OF_ACCOUNTS));
-      return INITIAL_CHART_OF_ACCOUNTS;
+      return structuredClone(INITIAL_CHART_OF_ACCOUNTS);
     }
     return JSON.parse(raw) as Account[];
-  } catch {
-    return INITIAL_CHART_OF_ACCOUNTS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_CHART_OF_ACCOUNTS);
   }
 }
 
@@ -49,11 +52,12 @@ function getStoredJVs(): JournalVoucher[] {
     const raw = localStorage.getItem(STORAGE_KEY_JV);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_JV, JSON.stringify(INITIAL_JOURNAL_VOUCHERS));
-      return INITIAL_JOURNAL_VOUCHERS;
+      return structuredClone(INITIAL_JOURNAL_VOUCHERS);
     }
     return JSON.parse(raw) as JournalVoucher[];
-  } catch {
-    return INITIAL_JOURNAL_VOUCHERS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_JOURNAL_VOUCHERS);
   }
 }
 
@@ -70,11 +74,12 @@ function getStoredCBT(): CashBankTransaction[] {
     const raw = localStorage.getItem(STORAGE_KEY_CBT);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_CBT, JSON.stringify(INITIAL_CASH_BANK_TRANSACTIONS));
-      return INITIAL_CASH_BANK_TRANSACTIONS;
+      return structuredClone(INITIAL_CASH_BANK_TRANSACTIONS);
     }
     return JSON.parse(raw) as CashBankTransaction[];
-  } catch {
-    return INITIAL_CASH_BANK_TRANSACTIONS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_CASH_BANK_TRANSACTIONS);
   }
 }
 
@@ -91,11 +96,12 @@ function getStoredRecon(): ReconciliationItem[] {
     const raw = localStorage.getItem(STORAGE_KEY_RECON);
     if (!raw) {
       localStorage.setItem(STORAGE_KEY_RECON, JSON.stringify(INITIAL_RECONCILIATION_ITEMS));
-      return INITIAL_RECONCILIATION_ITEMS;
+      return structuredClone(INITIAL_RECONCILIATION_ITEMS);
     }
     return JSON.parse(raw) as ReconciliationItem[];
-  } catch {
-    return INITIAL_RECONCILIATION_ITEMS;
+  } catch (error) {
+    rethrowBackendRejection(error);
+    return structuredClone(INITIAL_RECONCILIATION_ITEMS);
   }
 }
 
@@ -111,11 +117,12 @@ export const accountingApi = {
   // FR-GL-03: Chart of Accounts
   getAccounts: async (): Promise<Account[]> => {
     try {
-      const res = await fetch("/api/v1/accounting/chart-of-accounts");
+      const res = await fallbackFetch("/api/v1/accounting/chart-of-accounts");
       if (res.ok) {
         return (await res.json()) as Account[];
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
     return getStoredAccounts();
@@ -123,7 +130,7 @@ export const accountingApi = {
 
   createAccount: async (req: CreateAccountRequest): Promise<Account> => {
     try {
-      const res = await fetch("/api/v1/accounting/chart-of-accounts", {
+      const res = await fallbackFetch("/api/v1/accounting/chart-of-accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(req),
@@ -131,7 +138,8 @@ export const accountingApi = {
       if (res.ok) {
         return (await res.json()) as Account;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -161,11 +169,12 @@ export const accountingApi = {
   // FR-GL-02: Journal Vouchers + Approval Workflow
   getJournalVouchers: async (): Promise<JournalVoucher[]> => {
     try {
-      const res = await fetch("/api/v1/accounting/journal-vouchers");
+      const res = await fallbackFetch("/api/v1/accounting/journal-vouchers");
       if (res.ok) {
         return (await res.json()) as JournalVoucher[];
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
     return getStoredJVs().sort((a, b) => b.voucherNumber.localeCompare(a.voucherNumber));
@@ -173,7 +182,7 @@ export const accountingApi = {
 
   createJournalVoucher: async (req: CreateJournalVoucherRequest): Promise<JournalVoucher> => {
     try {
-      const res = await fetch("/api/v1/accounting/journal-vouchers", {
+      const res = await fallbackFetch("/api/v1/accounting/journal-vouchers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(req),
@@ -181,7 +190,8 @@ export const accountingApi = {
       if (res.ok) {
         return (await res.json()) as JournalVoucher;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -228,7 +238,7 @@ export const accountingApi = {
     approverRole: string
   ): Promise<JournalVoucher> => {
     try {
-      const res = await fetch(`/api/v1/accounting/journal-vouchers/${voucherId}/approve`, {
+      const res = await fallbackFetch(`/api/v1/accounting/journal-vouchers/${voucherId}/approve`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ approverName, approverRole }),
@@ -236,7 +246,8 @@ export const accountingApi = {
       if (res.ok) {
         return (await res.json()) as JournalVoucher;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -344,11 +355,12 @@ export const accountingApi = {
   // FR-GL-04: Financial Statement Generation
   getTrialBalance: async (period = "September 2026"): Promise<TrialBalanceReport> => {
     try {
-      const res = await fetch(`/api/v1/accounting/statements/trial-balance?period=${period}`);
+      const res = await fallbackFetch(`/api/v1/accounting/statements/trial-balance?period=${period}`);
       if (res.ok) {
         return (await res.json()) as TrialBalanceReport;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -361,8 +373,10 @@ export const accountingApi = {
       let credit = 0;
       if (acc.type === "ASSET" || acc.type === "EXPENSE") {
         debit = Math.max(0, acc.balance);
+        credit = Math.max(0, -acc.balance);
       } else {
         credit = Math.max(0, acc.balance);
+        debit = Math.max(0, -acc.balance);
       }
       totalDebit += debit;
       totalCredit += credit;
@@ -386,11 +400,12 @@ export const accountingApi = {
 
   getIncomeStatement: async (period = "September 2026"): Promise<IncomeStatementReport> => {
     try {
-      const res = await fetch(`/api/v1/accounting/statements/income-statement?period=${period}`);
+      const res = await fallbackFetch(`/api/v1/accounting/statements/income-statement?period=${period}`);
       if (res.ok) {
         return (await res.json()) as IncomeStatementReport;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -417,11 +432,12 @@ export const accountingApi = {
 
   getBalanceSheet: async (period = "September 2026"): Promise<BalanceSheetReport> => {
     try {
-      const res = await fetch(`/api/v1/accounting/statements/balance-sheet?period=${period}`);
+      const res = await fallbackFetch(`/api/v1/accounting/statements/balance-sheet?period=${period}`);
       if (res.ok) {
         return (await res.json()) as BalanceSheetReport;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
@@ -435,6 +451,8 @@ export const accountingApi = {
     const equity = accounts
       .filter((a) => a.type === "EQUITY")
       .map((a) => ({ accountCode: a.code, name: a.name, amount: a.balance }));
+    const currentSurplus = accounts.reduce((sum, account) => sum + (account.type === 'REVENUE' ? account.balance : account.type === 'EXPENSE' ? -account.balance : 0), 0);
+    equity.push({ accountCode: 'CURRENT-SURPLUS', name: 'Current operating surplus / deficit', amount: currentSurplus });
 
     const totalAssets = assets.reduce((s, a) => s + a.amount, 0);
     const totalLiabilities = liabilities.reduce((s, l) => s + l.amount, 0);
@@ -455,15 +473,26 @@ export const accountingApi = {
   // FR-GL-05: Patient Revenue Reconciliation against Billing
   getBillingReconciliation: async (period = "September 2026"): Promise<BillingReconciliationReport> => {
     try {
-      const res = await fetch(`/api/v1/accounting/reconciliation/${period}`);
+      const res = await fallbackFetch(`/api/v1/accounting/reconciliation/${period}`);
       if (res.ok) {
         return (await res.json()) as BillingReconciliationReport;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // fallback
     }
 
     const items = getStoredRecon();
+    for (const invoice of await billingApi.getInvoices({ includeDeleted: true })) {
+      for (const receipt of invoice.payments) {
+        if (items.some(i => i.billingReceiptId === receipt.id)) continue;
+        items.push({ id: `recon-${receipt.id}`, billingReceiptId: receipt.id, receiptNumber: receipt.receiptNumber,
+          invoiceNumber: invoice.invoiceNumber, patientMrn: invoice.hospitalNumber, patientName: invoice.patientName,
+          paymentMethod: receipt.paymentMethod, billingAmount: receipt.amountPaid, glPostedAmount: 0,
+          varianceAmount: receipt.amountPaid, status: 'UNPOSTED_IN_GL', transactionDate: receipt.paymentDate });
+      }
+    }
+    setStoredRecon(items);
     const totalBillingRevenue = items.reduce((s, i) => s + i.billingAmount, 0);
     const totalGlRevenue = items.reduce((s, i) => s + i.glPostedAmount, 0);
     const variance = totalBillingRevenue - totalGlRevenue;
@@ -492,10 +521,17 @@ export const accountingApi = {
 
     const currentItem = items[idx];
     if (!currentItem) throw new Error("Reconciliation item not found");
+    if (currentItem.status === 'MATCHED') return currentItem;
+    if (currentItem.glPostedAmount !== 0) throw new Error('Partially posted receipts require manual reconciliation.');
+
+    const accounts = getStoredAccounts();
+    const cashCode = currentItem.paymentMethod === 'Cash' || currentItem.paymentMethod === 'CASH' ? '1010' : '1020';
+    const cashAccount = accounts.find(a => a.code === cashCode);
+    const revenueAccount = accounts.find(a => a.code === '4010');
+    if (!cashAccount || !revenueAccount) throw new Error('Reconciliation accounts not found.');
 
     const now = new Date().toISOString();
-    const serial = String(items.length + 150).padStart(4, "0");
-    const glRef = `JV-AUTO-${serial}`;
+    const glRef = `JV-AUTO-${currentItem.billingReceiptId}`;
 
     const updatedItem: ReconciliationItem = {
       ...currentItem,
@@ -519,9 +555,9 @@ export const accountingApi = {
       items: [
         {
           id: `jvi-auto-1`,
-          accountId: "acc-1020",
-          accountCode: "1020",
-          accountName: "Treasury Single Account (TSA) - CBN",
+          accountId: cashAccount.id,
+          accountCode: cashAccount.code,
+          accountName: cashAccount.name,
           debit: currentItem.billingAmount,
           credit: 0,
           memo: `Billing settlement via ${currentItem.paymentMethod}`,
@@ -548,6 +584,10 @@ export const accountingApi = {
       updatedAt: now,
     });
     setStoredJVs(jvs);
+
+    cashAccount.balance += currentItem.billingAmount;
+    revenueAccount.balance += currentItem.billingAmount;
+    setStoredAccounts(accounts);
 
     return updatedItem;
   },
