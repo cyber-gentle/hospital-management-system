@@ -1,5 +1,7 @@
 # Group 1 mock patient journey verification
 
+> Follow-up 2026-10-01: local merging was subsequently authorized. These fixes were committed on the existing frontend branch as `2b2ee16`, then merged into local main with the other team branches. Nothing was pushed. See `BRANCH_CONFLICTS.md` for the resolved conflicts and final combined-branch verification.
+
 Verified 2026-09-29/30 against draft PR #3 (`feat/group-1-medical-records`, base commit `3f5af81`). All fixes remain local and confined to `frontend/`. No branch was pushed or merged.
 
 ## Results and fixes

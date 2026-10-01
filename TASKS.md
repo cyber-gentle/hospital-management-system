@@ -325,3 +325,10 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 question that needs hospital input, add it under the relevant section
 here (or as a new `[UNRESOLVED]` note in `PRD.md` if it's a business
 decision) rather than resolving it silently.
+
+## Local team integration verification (2026-10-01)
+
+- [x] Verify Group 1 mock patient journey and fix frontend failures; see frontend/QA_GROUP1.md.
+- [x] Merge all four fetched feature branches into local main, resolve frontend conflicts, preserve original commit objects and contributor metadata. No push performed.
+- [x] Verify merged frontend: 13 tests, production build, and browser navigation; Python: 32 tests pass.
+- [ ] Run Go and database-backed cross-service tests in the configured integration environment (8 Python cross-service cases skipped locally).

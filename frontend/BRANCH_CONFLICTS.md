@@ -1,5 +1,17 @@
 # Team branch integration check — 2026-09-30
 
+> Updated 2026-10-01: the user subsequently authorized local merging. All conflicts below are now resolved in local main. The original billing UI is preserved unchanged in `src/BillingDesignPreview.tsx`, reachable at `/?view=billing-design`; the working module directory remains the default. The lockfile was regenerated from the combined manifest. Frontend merge: `c016b39`; backend merge: `a0bc5fa`. All four freshly fetched feature tips are ancestors of main. Original commit objects, author/committer identities and timestamps are preserved; no squash, rebase or push was performed. The sections below retain the pre-merge findings for context.
+
+## Final verification — 2026-10-01
+
+- Frontend: 13 regression tests pass; TypeScript/Vite production build passes with the existing large-chunk warning.
+- Browser: preserved billing preview renders and returns to the working modules; the previously verified patient invoice remains paid with zero balance.
+- Python: 32 tests pass, 8 cross-service tests skip because the Go/PostgreSQL integration environment is unavailable. Pytest also reports a non-failing cache-directory permission warning.
+- Go tests and database-backed integration tests were not executed locally. Full production integration is not certified.
+- Backend, CI and infrastructure files match the phase-1-backend tip. Main's original billing UI matches the preserved preview file exactly.
+- Refreshed all remote branch tips on 2026-10-01: every tip is included in local main; no unresolved index entries or working-tree changes remained before this documentation update.
+- New QA and merge commits use the configured identity `cyber-gentle <info.abdavid@gmail.com>`. Existing contributors' identities and hashes are unchanged.
+
 ## Outcome
 
 **Not ready for a conflict-free merge into main.** All four fetched feature branches are textually compatible with each other, including the local Group 1 fixes. Their combined tree conflicts with main in two frontend files. No push, real merge, rebase, branch update or index staging was performed. Analysis used `git merge-tree --write-tree` and temporary Git objects with a separate index to include uncommitted files.
