@@ -28,8 +28,8 @@ services:
     environment:
       PORT: "8080"
       DATABASE_URL: "postgres://${POSTGRES_USER:-hims_app}:${POSTGRES_PASSWORD:-hims_dev_password}@postgres:5432/${POSTGRES_DB:-hims}?sslmode=disable"
-      JWT_SECRET: ${JWT_SECRET:-dev_insecure_jwt_secret_key_32bytes_long}
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-dev_internal_service_key_secret}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env - generate one with `openssl rand -base64 48`}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY must be set in .env - generate one with `openssl rand -base64 32`}
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,8 +46,12 @@ services:
       PORT: "8000"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-hims_app}:${POSTGRES_PASSWORD:-hims_dev_password}@postgres:5432/${POSTGRES_DB:-hims}"
       CORE_SERVICE_URL: "http://core-go:8080"
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-dev_internal_service_key_secret}
-      JWT_SECRET: ${JWT_SECRET:-dev_insecure_jwt_secret_key_32bytes_long}
+      # Browser origins allowed to call this service directly. Never "*":
+      # the service answers with credentials. Set the real origins for any
+      # deployment; this default only fits local development.
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost:5173}"
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY must be set in .env - generate one with `openssl rand -base64 32`}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env - generate one with `openssl rand -base64 48`}
     depends_on:
       - core-go
 

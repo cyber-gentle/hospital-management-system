@@ -3,7 +3,6 @@ package auth
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -14,8 +13,10 @@ func init() {
 }
 
 func TestAuthRequiredMiddleware(t *testing.T) {
+	tokens := testTokenService()
+
 	router := gin.New()
-	router.GET("/protected", AuthRequired(), func(c *gin.Context) {
+	router.GET("/protected", AuthRequired(tokens), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -28,7 +29,7 @@ func TestAuthRequiredMiddleware(t *testing.T) {
 	}
 
 	// 2. Valid token -> 200
-	token, _ := GenerateToken("usr_1", "nurse_mary", "NURSE", "ICU")
+	token, _ := tokens.Generate("usr_1", "nurse_mary", "NURSE", "ICU")
 	reqValid, _ := http.NewRequest(http.MethodGet, "/protected", nil)
 	reqValid.Header.Set("Authorization", "Bearer "+token)
 	wValid := httptest.NewRecorder()
@@ -39,13 +40,15 @@ func TestAuthRequiredMiddleware(t *testing.T) {
 }
 
 func TestRequireRoleMiddleware(t *testing.T) {
+	tokens := testTokenService()
+
 	router := gin.New()
-	router.GET("/doctor-only", AuthRequired(), RequireRole("DOCTOR"), func(c *gin.Context) {
+	router.GET("/doctor-only", AuthRequired(tokens), RequireRole("DOCTOR"), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "access_granted"})
 	})
 
 	// Nurse attempting to access doctor route -> 403
-	nurseToken, _ := GenerateToken("usr_nurse", "nurse_joy", "NURSE", "General")
+	nurseToken, _ := tokens.Generate("usr_nurse", "nurse_joy", "NURSE", "General")
 	reqNurse, _ := http.NewRequest(http.MethodGet, "/doctor-only", nil)
 	reqNurse.Header.Set("Authorization", "Bearer "+nurseToken)
 	wNurse := httptest.NewRecorder()
@@ -55,7 +58,7 @@ func TestRequireRoleMiddleware(t *testing.T) {
 	}
 
 	// Doctor accessing doctor route -> 200
-	doctorToken, _ := GenerateToken("usr_doc", "dr_house", "DOCTOR", "Diagnostics")
+	doctorToken, _ := tokens.Generate("usr_doc", "dr_house", "DOCTOR", "Diagnostics")
 	reqDoctor, _ := http.NewRequest(http.MethodGet, "/doctor-only", nil)
 	reqDoctor.Header.Set("Authorization", "Bearer "+doctorToken)
 	wDoctor := httptest.NewRecorder()
@@ -65,7 +68,7 @@ func TestRequireRoleMiddleware(t *testing.T) {
 	}
 
 	// Admin accessing doctor route -> 200 (admin override)
-	adminToken, _ := GenerateToken("usr_admin", "admin_root", "ADMIN", "IT")
+	adminToken, _ := tokens.Generate("usr_admin", "admin_root", "ADMIN", "IT")
 	reqAdmin, _ := http.NewRequest(http.MethodGet, "/doctor-only", nil)
 	reqAdmin.Header.Set("Authorization", "Bearer "+adminToken)
 	wAdmin := httptest.NewRecorder()
@@ -76,11 +79,10 @@ func TestRequireRoleMiddleware(t *testing.T) {
 }
 
 func TestInternalServiceAuthRequired(t *testing.T) {
-	os.Setenv("INTERNAL_SERVICE_KEY", "test_internal_secret")
-	defer os.Unsetenv("INTERNAL_SERVICE_KEY")
+	const key = "test_internal_secret"
 
 	router := gin.New()
-	router.POST("/internal/test", InternalServiceAuthRequired(), func(c *gin.Context) {
+	router.POST("/internal/test", InternalServiceAuthRequired(key), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "internal_ok"})
 	})
 
@@ -92,9 +94,18 @@ func TestInternalServiceAuthRequired(t *testing.T) {
 		t.Errorf("expected 401 for unauthorized internal call, got %d", wUnauthorized.Code)
 	}
 
+	// Wrong secret -> 401
+	reqWrong, _ := http.NewRequest(http.MethodPost, "/internal/test", nil)
+	reqWrong.Header.Set("X-Internal-Service-Key", "wrong_secret")
+	wWrong := httptest.NewRecorder()
+	router.ServeHTTP(wWrong, reqWrong)
+	if wWrong.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for wrong internal key, got %d", wWrong.Code)
+	}
+
 	// Valid secret -> 200
 	reqAuthorized, _ := http.NewRequest(http.MethodPost, "/internal/test", nil)
-	reqAuthorized.Header.Set("X-Internal-Service-Key", "test_internal_secret")
+	reqAuthorized.Header.Set("X-Internal-Service-Key", key)
 	wAuthorized := httptest.NewRecorder()
 	router.ServeHTTP(wAuthorized, reqAuthorized)
 	if wAuthorized.Code != http.StatusOK {

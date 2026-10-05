@@ -11,10 +11,12 @@ reverse proxy, so from the browser's perspective there is one API surface
 — which service actually handles a route is a backend concern (see
 `ARCHITECTURE.md` module-ownership table).
 
-Internal-only routes (`/internal/v1/...`) are never exposed through the
+Internal-only routes (`/internal/...`) are never exposed through the
 reverse proxy — reachable only from the Python service to the Go service,
 over the internal network, authenticated with a service-to-service
-credential, not a user JWT.
+credential, not a user JWT. They are deliberately *not* versioned: both
+services are deployed together from one compose file, so there is no
+independent consumer for a version prefix to protect.
 
 ---
 
@@ -31,12 +33,12 @@ credential, not a user JWT.
 
 | Method | Route | Purpose |
 |---|---|---|
-| POST | `/internal/v1/audit-log` | Write an audit entry — Python's only path to `audit_logs` |
-| GET | `/internal/v1/authz/check` | Resolve a permission-matrix decision for a given user/role/action |
+| POST | `/internal/audit-log` | Write an audit entry — Python's only path to `audit_logs` |
+| GET | `/internal/authz/check` | Resolve a permission-matrix decision for a given user/role/action |
 
 ---
 
-## Go Core Service — 14 modules
+## Go Core Service — 17 modules
 
 ### Medical Records
 | Method | Route |
@@ -181,9 +183,9 @@ credential, not a user JWT.
 
 ## Python Interop Service — 3 modules
 
-Every mutating route below calls `POST /internal/v1/audit-log` on the Go
+Every mutating route below calls `POST /internal/audit-log` on the Go
 service before returning, and every permission-sensitive route calls
-`GET /internal/v1/authz/check` first — see `ARCHITECTURE.md`
+`GET /internal/authz/check` first — see `ARCHITECTURE.md`
 "Audit log / RBAC ownership" table. None of these routes write directly
 to `audit_logs`, `users`, or permission tables.
 

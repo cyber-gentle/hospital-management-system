@@ -43,9 +43,20 @@ func (w *Writer) Record(ctx context.Context, e Entry) error {
 		e.Status = "SUCCESS"
 	}
 
-	detailsJSON, err := json.Marshal(e.Details)
+	// Normalise absent details to an empty object rather than JSON null, so the
+	// column always holds an object regardless of what the caller passed.
+	details := e.Details
+	if details == nil {
+		details = map[string]interface{}{}
+	}
+
+	detailsJSON, err := json.Marshal(details)
 	if err != nil {
-		detailsJSON = []byte("{}")
+		// Deliberately not falling back to writing the entry with empty
+		// details. An audit record that silently drops its payload still looks
+		// complete to a later reader, which is worse than no record at all —
+		// the caller must fix whatever could not be encoded.
+		return fmt.Errorf("failed to encode audit details for %s/%s: %w", e.Module, e.Action, err)
 	}
 
 	query := `

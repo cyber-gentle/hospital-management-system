@@ -3,7 +3,6 @@ package auth
 import (
 	"crypto/subtle"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -16,8 +15,8 @@ const (
 	ContextDepartment = "auth_department"
 )
 
-// AuthRequired validates bearer tokens on protected endpoints
-func AuthRequired() gin.HandlerFunc {
+// AuthRequired validates bearer tokens on protected endpoints.
+func AuthRequired(tokens *TokenService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -35,7 +34,7 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		claims, err := ValidateToken(parts[1])
+		claims, err := tokens.Validate(parts[1])
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid or expired token",
@@ -91,15 +90,15 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 	}
 }
 
-// InternalServiceAuthRequired ensures requests to internal endpoints
-// come from trusted services (like interop-py) via shared secret header
-func InternalServiceAuthRequired() gin.HandlerFunc {
+// InternalServiceAuthRequired ensures requests to internal endpoints come from
+// trusted services (like interop-py) via a shared secret header.
+//
+// The expected key is injected at construction rather than read from the
+// environment per request, so a service started without INTERNAL_SERVICE_KEY
+// fails at boot instead of accepting a placeholder value that is published in
+// this repository's compose files and documentation.
+func InternalServiceAuthRequired(internalKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		internalKey := os.Getenv("INTERNAL_SERVICE_KEY")
-		if internalKey == "" {
-			internalKey = "dev_internal_service_key_secret"
-		}
-
 		providedKey := c.GetHeader("X-Internal-Service-Key")
 		if subtle.ConstantTimeCompare([]byte(providedKey), []byte(internalKey)) != 1 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
