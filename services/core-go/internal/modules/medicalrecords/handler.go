@@ -112,8 +112,8 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 		return
 	}
 
-	h.auditWriter.WriteLogAsync(auditlog.LogEntry{
-		UserID:       userID,
+	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
 		Service:      "core-go",
@@ -128,6 +128,10 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 			"last_name":       req.LastName,
 		},
 	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusCreated, patient)
 }
@@ -269,8 +273,8 @@ func (h *Handler) HandleGenerateIDCard(c *gin.Context) {
 	}
 
 	// Write mandatory audit log
-	h.auditWriter.WriteLogAsync(auditlog.LogEntry{
-		UserID:       userID,
+	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
 		Service:      "core-go",
@@ -284,6 +288,9 @@ func (h *Handler) HandleGenerateIDCard(c *gin.Context) {
 			"issued_at":       cardData.IssuedAt,
 		},
 	})
+	if err != nil {
+		fmt.Printf("failed to write audit log for PRINT_ID_CARD: %v\n", err)
+	}
 
 	c.JSON(http.StatusOK, cardData)
 }
