@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	
+
 	"hospital-hims/services/core-go/internal/auditlog"
 	"hospital-hims/services/core-go/internal/auth"
 )
@@ -34,6 +34,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	mr.POST("/patients", h.HandleCreatePatient)
 	mr.GET("/patients", h.HandleSearchPatients)
 	mr.GET("/patients/:id", h.HandleGetPatient)
+	mr.POST("/patients/:id/id-card", h.HandleGenerateIDCard)
+	mr.GET("/patients/:id/payment-status", h.HandleGetPaymentStatus)
 }
 
 func (h *Handler) HandleCreatePatient(c *gin.Context) {
@@ -72,7 +74,7 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, true, $21
 		) RETURNING id, created_at, updated_at
 	`
-	
+
 	var patient Patient
 	patient.HospitalNumber = hospitalNumber
 	patient.FirstName = req.FirstName
@@ -110,8 +112,8 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 		return
 	}
 
-	h.auditWriter.WriteLogAsync(auditlog.LogEntry{
-		UserID:       userID,
+	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
 		Service:      "core-go",
@@ -126,6 +128,10 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 			"last_name":       req.LastName,
 		},
 	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusCreated, patient)
 }
@@ -185,7 +191,7 @@ func (h *Handler) HandleSearchPatients(c *gin.Context) {
 
 func (h *Handler) HandleGetPatient(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	query := `
 		SELECT id, hospital_number, first_name, last_name, other_names, date_of_birth, gender,
 			phone_number, email, address, blood_group, genotype, marital_status,
@@ -195,7 +201,7 @@ func (h *Handler) HandleGetPatient(c *gin.Context) {
 		FROM patients
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	
+
 	var p Patient
 	var dob time.Time
 	err := h.db.QueryRowContext(c.Request.Context(), query, id).Scan(
@@ -216,4 +222,111 @@ func (h *Handler) HandleGetPatient(c *gin.Context) {
 	}
 	p.DateOfBirth = dob.Format("2006-01-02")
 	c.JSON(http.StatusOK, p)
+}
+
+func (h *Handler) HandleGenerateIDCard(c *gin.Context) {
+	id := c.Param("id")
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	query := `
+		SELECT hospital_number, first_name, last_name, other_names, date_of_birth, gender,
+			blood_group, genotype, emergency_contact_phone
+		FROM patients
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	var hospNo, fname, lname, gender, emergPhone string
+	var otherNames, bgroup, genotype *string
+	var dob time.Time
+
+	err := h.db.QueryRowContext(c.Request.Context(), query, id).Scan(
+		&hospNo, &fname, &lname, &otherNames, &dob, &gender,
+		&bgroup, &genotype, &emergPhone,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Patient not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		}
+		return
+	}
+
+	fullName := fname + " " + lname
+	if otherNames != nil && *otherNames != "" {
+		fullName = fname + " " + *otherNames + " " + lname
+	}
+
+	cardData := PatientIDCardData{
+		PatientID:             id,
+		HospitalNumber:        hospNo,
+		FullName:              fullName,
+		DateOfBirth:           dob.Format("2006-01-02"),
+		Gender:                gender,
+		BloodGroup:            bgroup,
+		Genotype:              genotype,
+		EmergencyContactPhone: emergPhone,
+		IssuedAt:              time.Now().Format(time.RFC3339),
+	}
+
+	// Write mandatory audit log
+	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "medical-records",
+		Action:       "PRINT_ID_CARD",
+		ResourceType: "Patient",
+		ResourceID:   id,
+		Status:       "SUCCESS",
+		Details: map[string]interface{}{
+			"hospital_number": hospNo,
+			"issued_at":       cardData.IssuedAt,
+		},
+	})
+	if err != nil {
+		fmt.Printf("failed to write audit log for PRINT_ID_CARD: %v\n", err)
+	}
+
+	c.JSON(http.StatusOK, cardData)
+}
+
+func (h *Handler) HandleGetPaymentStatus(c *gin.Context) {
+	id := c.Param("id")
+
+	// 1. Get the patient's payment category
+	query := `SELECT hospital_number, payment_category FROM patients WHERE id = $1 AND deleted_at IS NULL`
+	var hospNo, category string
+	if err := h.db.QueryRowContext(c.Request.Context(), query, id).Scan(&hospNo, &category); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Patient not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		}
+		return
+	}
+
+	// 2. Placeholder for pending deposits/invoices.
+	// Real implementation will join or query the 'invoices' and 'admissions' tables once those modules exist.
+	hasPendingDeposits := false
+	hasUnsettledInvoices := false
+	status := "CLEARED"
+
+	// Stub logic based on business rules:
+	if hasPendingDeposits || hasUnsettledInvoices {
+		status = "BLOCKED"
+	}
+
+	c.JSON(http.StatusOK, PaymentStatusData{
+		PatientID:            id,
+		HospitalNumber:       hospNo,
+		PaymentCategory:      category,
+		HasPendingDeposits:   hasPendingDeposits,
+		HasUnsettledInvoices: hasUnsettledInvoices,
+		Status:               status,
+	})
 }
