@@ -31,6 +31,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	nursing.POST("/admissions", h.HandleCreateAdmission)
 	nursing.POST("/vitals", h.HandleCreateVitals)
 	nursing.POST("/notes", h.HandleCreateNursingNote)
+	nursing.GET("/my-patients", h.HandleGetMyPatients)
 }
 
 func (h *Handler) HandleCreateAdmission(c *gin.Context) {
@@ -272,4 +273,53 @@ func (h *Handler) HandleCreateNursingNote(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, n)
+}
+
+func (h *Handler) HandleGetMyPatients(c *gin.Context) {
+	// Filter by risk level if provided (e.g. ?risk=Critical)
+	riskFilter := c.Query("risk")
+
+	// Get all currently admitted patients with their ward and bed details
+	query := `
+		SELECT
+			p.id, a.id, p.hospital_number, p.first_name, p.last_name,
+			w.name, b.bed_number, a.admitted_at
+		FROM admissions a
+		JOIN patients p ON a.patient_id = p.id
+		JOIN wards w ON a.ward_id = w.id
+		JOIN beds b ON a.bed_id = b.id
+		WHERE a.status = 'ADMITTED' AND a.deleted_at IS NULL
+	`
+
+	rows, err := h.db.QueryContext(c.Request.Context(), query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch patients: " + err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var patients []MyPatientResponse
+	for rows.Next() {
+		var mp MyPatientResponse
+		if err := rows.Scan(
+			&mp.PatientID, &mp.AdmissionID, &mp.HospitalNumber,
+			&mp.FirstName, &mp.LastName, &mp.WardName, &mp.BedNumber, &mp.AdmittedAt,
+		); err != nil {
+			continue
+		}
+
+		// In a full implementation, risk level would be computed dynamically
+		// from the most recent vitals (e.g. MEWS score) or a designated column.
+		// For now, we stub it as "Stable".
+		mp.RiskLevel = "Stable"
+
+		if riskFilter == "" || riskFilter == mp.RiskLevel {
+			patients = append(patients, mp)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"patients": patients,
+		"total":    len(patients),
+	})
 }

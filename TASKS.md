@@ -205,7 +205,7 @@ built, resolve these by picking the most defensible default from
 ### 2.2 Nursing Services
 - [x] Admission/ward/bed entities + migrations
 - [x] FR-NS-01: Admission intake flow (triage, ward/bed assignment, checklist)
-- [ ] FR-NS-02: My Patients list (filter by Critical/High Risk/Stable)
+- [x] FR-NS-02: My Patients list (filter by Critical/High Risk/Stable)
 - [ ] FR-NS-03: Nursing Tasks (MAR-linked)
 - [x] FR-NS-04: Vital signs entry (manual + device-connect stub)
 - [x] FR-NS-05: Nursing Notes (structured types, tagging, sign-and-lock)

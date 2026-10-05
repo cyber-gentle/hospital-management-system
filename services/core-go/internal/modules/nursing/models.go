@@ -76,3 +76,16 @@ type CreateNursingNoteRequest struct {
 	NoteType    string `json:"note_type" binding:"required"`
 	Notes       string `json:"notes" binding:"required"`
 }
+
+type MyPatientResponse struct {
+	PatientID       string    `json:"patient_id"`
+	AdmissionID     string    `json:"admission_id"`
+	HospitalNumber  string    `json:"hospital_number"`
+	FirstName       string    `json:"first_name"`
+	LastName        string    `json:"last_name"`
+	WardName        string    `json:"ward_name"`
+	BedNumber       string    `json:"bed_number"`
+	RiskLevel       string    `json:"risk_level"` // Critical, High Risk, Stable
+	AdmittedAt      time.Time `json:"admitted_at"`
+}
+
