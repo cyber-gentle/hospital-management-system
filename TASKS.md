@@ -203,12 +203,12 @@ built, resolve these by picking the most defensible default from
 - [ ] FR-MR-06: Payment-before-service enforcement (depends on Task 1 decision)
 
 ### 2.2 Nursing Services
-- [ ] Admission/ward/bed entities + migrations
-- [ ] FR-NS-01: Admission intake flow (triage, ward/bed assignment, checklist)
+- [x] Admission/ward/bed entities + migrations
+- [x] FR-NS-01: Admission intake flow (triage, ward/bed assignment, checklist)
 - [ ] FR-NS-02: My Patients list (filter by Critical/High Risk/Stable)
 - [ ] FR-NS-03: Nursing Tasks (MAR-linked)
-- [ ] FR-NS-04: Vital signs entry (manual + device-connect stub)
-- [ ] FR-NS-05: Nursing Notes (structured types, tagging, sign-and-lock)
+- [x] FR-NS-04: Vital signs entry (manual + device-connect stub)
+- [x] FR-NS-05: Nursing Notes (structured types, tagging, sign-and-lock)
 - [ ] FR-NS-06: Care Plans (templates, interventions, progress tracking)
 - [ ] FR-NS-07: Shift Handover (endorsement list, dual sign-off)
 - [ ] FR-NS-08: Ward Management (bed map, staff allocation, ward inventory)

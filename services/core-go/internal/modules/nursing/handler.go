@@ -29,6 +29,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	nursing.Use(auth.AuthRequired(h.tokens))
 
 	nursing.POST("/admissions", h.HandleCreateAdmission)
+	nursing.POST("/vitals", h.HandleCreateVitals)
+	nursing.POST("/notes", h.HandleCreateNursingNote)
 }
 
 func (h *Handler) HandleCreateAdmission(c *gin.Context) {
@@ -135,4 +137,139 @@ func (h *Handler) HandleCreateAdmission(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, adm)
+}
+
+func (h *Handler) HandleCreateVitals(c *gin.Context) {
+	userID := c.GetString(auth.ContextUserID)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	var req CreateVitalsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		return
+	}
+
+	query := `
+		INSERT INTO vitals (
+			patient_id, admission_id, recorded_by, temperature, blood_pressure,
+			pulse_rate, respiratory_rate, spO2, weight, height, notes
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+		) RETURNING id, recorded_at, created_at, updated_at
+	`
+
+	var v Vitals
+	v.PatientID = req.PatientID
+	v.AdmissionID = req.AdmissionID
+	v.RecordedBy = userID
+	v.Temperature = req.Temperature
+	v.BloodPressure = req.BloodPressure
+	v.PulseRate = req.PulseRate
+	v.RespiratoryRate = req.RespiratoryRate
+	v.SpO2 = req.SpO2
+	v.Weight = req.Weight
+	v.Height = req.Height
+	v.Notes = req.Notes
+
+	err := h.db.QueryRowContext(
+		c.Request.Context(), query,
+		req.PatientID, req.AdmissionID, userID, req.Temperature, req.BloodPressure,
+		req.PulseRate, req.RespiratoryRate, req.SpO2, req.Weight, req.Height, req.Notes,
+	).Scan(&v.ID, &v.RecordedAt, &v.CreatedAt, &v.UpdatedAt)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record vitals: " + err.Error()})
+		return
+	}
+
+	// Audit log
+	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "CREATE_VITALS",
+		ResourceType: "Vitals",
+		ResourceID:   v.ID,
+		Status:       "SUCCESS",
+		Details: map[string]interface{}{
+			"patient_id": req.PatientID,
+		},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, v)
+}
+
+func (h *Handler) HandleCreateNursingNote(c *gin.Context) {
+	userID := c.GetString(auth.ContextUserID)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	var req CreateNursingNoteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		return
+	}
+
+	query := `
+		INSERT INTO nursing_notes (
+			patient_id, admission_id, recorded_by, note_type, notes
+		) VALUES (
+			$1, $2, $3, $4, $5
+		) RETURNING id, recorded_at, created_at, updated_at
+	`
+
+	var n NursingNote
+	n.PatientID = req.PatientID
+	n.AdmissionID = req.AdmissionID
+	n.RecordedBy = userID
+	n.NoteType = req.NoteType
+	n.Notes = req.Notes
+
+	err := h.db.QueryRowContext(
+		c.Request.Context(), query,
+		req.PatientID, req.AdmissionID, userID, req.NoteType, req.Notes,
+	).Scan(&n.ID, &n.RecordedAt, &n.CreatedAt, &n.UpdatedAt)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record nursing note: " + err.Error()})
+		return
+	}
+
+	// Audit log
+	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "CREATE_NURSING_NOTE",
+		ResourceType: "NursingNote",
+		ResourceID:   n.ID,
+		Status:       "SUCCESS",
+		Details: map[string]interface{}{
+			"patient_id": req.PatientID,
+			"note_type":  req.NoteType,
+		},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, n)
 }
