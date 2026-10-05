@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	
+
 	"hospital-hims/services/core-go/internal/auditlog"
 	"hospital-hims/services/core-go/internal/auth"
 )
@@ -74,7 +74,7 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, true, $21
 		) RETURNING id, created_at, updated_at
 	`
-	
+
 	var patient Patient
 	patient.HospitalNumber = hospitalNumber
 	patient.FirstName = req.FirstName
@@ -187,7 +187,7 @@ func (h *Handler) HandleSearchPatients(c *gin.Context) {
 
 func (h *Handler) HandleGetPatient(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	query := `
 		SELECT id, hospital_number, first_name, last_name, other_names, date_of_birth, gender,
 			phone_number, email, address, blood_group, genotype, marital_status,
@@ -197,7 +197,7 @@ func (h *Handler) HandleGetPatient(c *gin.Context) {
 		FROM patients
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	
+
 	var p Patient
 	var dob time.Time
 	err := h.db.QueryRowContext(c.Request.Context(), query, id).Scan(
@@ -303,7 +303,7 @@ func (h *Handler) HandleGetPaymentStatus(c *gin.Context) {
 		return
 	}
 
-	// 2. Placeholder for pending deposits/invoices. 
+	// 2. Placeholder for pending deposits/invoices.
 	// Real implementation will join or query the 'invoices' and 'admissions' tables once those modules exist.
 	hasPendingDeposits := false
 	hasUnsettledInvoices := false
@@ -323,4 +323,3 @@ func (h *Handler) HandleGetPaymentStatus(c *gin.Context) {
 		Status:               status,
 	})
 }
-
