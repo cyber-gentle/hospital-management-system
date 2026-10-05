@@ -15,6 +15,7 @@ import { PharmacyView } from "./modules/pharmacy/PharmacyView";
 import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
+import { GopdView } from "./modules/gopd/GopdView";
 import BillingDesignPreview from "./BillingDesignPreview";
 
 interface ModuleCard {
@@ -231,6 +232,8 @@ const Dashboard: React.FC = () => {
           <MedicalRecordsView onBackToDashboard={() => setActiveModule(null)} />
         ) : activeModule === "nursing" ? (
           <NursingView />
+        ) : activeModule === "gopd" ? (
+          <GopdView />
         ) : activeModule === "billing" ? (
           <BillingView />
         ) : activeModule === "pharmacy" ? (
@@ -308,6 +311,7 @@ const Dashboard: React.FC = () => {
                   const isImplemented =
                     mod.id === "medicalrecords" ||
                     mod.id === "nursing" ||
+                    mod.id === "gopd" ||
                     mod.id === "billing" ||
                     mod.id === "pharmacy" ||
                     mod.id === "appointments" ||
