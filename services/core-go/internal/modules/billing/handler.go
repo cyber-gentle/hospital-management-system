@@ -38,11 +38,12 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	protected := billing.Group("")
 	protected.Use(auth.AuthRequired(h.tokens))
 
-	protected.POST("/invoices", h.HandleCreateInvoice)
-	protected.GET("/invoices", h.HandleListInvoices)
-	protected.GET("/invoices/:id", h.HandleGetInvoice)
-	protected.PUT("/invoices/:id/status", h.HandleUpdateInvoiceStatus)
-	protected.DELETE("/invoices/:id", h.HandleDeleteInvoice)
+	protected.POST("/invoices", auth.RequirePermission(h.db, "billing", "write"), h.HandleCreateInvoice)
+	protected.POST("/invoices/consolidate", auth.RequirePermission(h.db, "billing", "write"), h.HandleConsolidateCharges)
+	protected.GET("/invoices", auth.RequirePermission(h.db, "billing", "read"), h.HandleListInvoices)
+	protected.GET("/invoices/:id", auth.RequirePermission(h.db, "billing", "read"), h.HandleGetInvoice)
+	protected.PUT("/invoices/:id/status", auth.RequirePermission(h.db, "billing", "write"), h.HandleUpdateInvoiceStatus)
+	protected.DELETE("/invoices/:id", auth.RequirePermission(h.db, "billing", "delete"), h.HandleDeleteInvoice)
 
 	protected.POST("/payments", h.HandleCreatePayment)
 	protected.POST("/wallets/fund", h.HandleFundWalletManual)
@@ -766,4 +767,117 @@ func (h *Handler) HandleRecordAdmissionDeposit(c *gin.Context) {
 	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "Admission deposit recorded successfully", "deposit_id": depositID})
+}
+
+func (h *Handler) HandleConsolidateCharges(c *gin.Context) {
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	var req ConsolidateChargesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start tx"})
+		return
+	}
+	defer tx.Rollback()
+
+	var patientID string
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT patient_id FROM admissions WHERE id = $1 AND deleted_at IS NULL`, req.AdmissionID).Scan(&patientID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Admission not found"})
+		return
+	}
+
+	rows, err := tx.QueryContext(c.Request.Context(), `
+		SELECT id, task_type, description
+		FROM nursing_tasks 
+		WHERE admission_id = $1 AND status = 'COMPLETED' AND deleted_at IS NULL
+	`, req.AdmissionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query nursing tasks"})
+		return
+	}
+	defer rows.Close()
+
+	var subtotal decimal.Decimal
+	var lineItems []InvoiceLineItem
+
+	for rows.Next() {
+		var taskID, taskType, desc string
+		if err := rows.Scan(&taskID, &taskType, &desc); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan tasks"})
+			return
+		}
+
+		cost := decimal.NewFromInt(50) 
+		
+		subtotal = subtotal.Add(cost)
+		lineItems = append(lineItems, InvoiceLineItem{
+			Description: fmt.Sprintf("[%s] %s", taskType, desc),
+			Department:  "NURSING",
+			Quantity:    1,
+			UnitPrice:   cost,
+			TotalPrice:  cost,
+			PatientPayableAmount: cost,
+		})
+	}
+
+	if len(lineItems) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No billable nursing tasks found for this admission"})
+		return
+	}
+
+	invNo := fmt.Sprintf("INV-%d-%06d", time.Now().Year(), time.Now().UnixNano()%1000000)
+	totalAmount := subtotal
+
+	var invID string
+	err = tx.QueryRowContext(c.Request.Context(), `
+		INSERT INTO invoices (invoice_number, patient_id, admission_id, subtotal, total_amount, balance_due, status, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, 'UNPAID', $7)
+		RETURNING id
+	`, invNo, patientID, req.AdmissionID, subtotal, totalAmount, totalAmount, userID).Scan(&invID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create invoice"})
+		return
+	}
+
+	for _, li := range lineItems {
+		_, err = tx.ExecContext(c.Request.Context(), `
+			INSERT INTO invoice_line_items (invoice_id, description, department, quantity, unit_price, total_price, patient_payable_amount)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`, invID, li.Description, li.Department, li.Quantity, li.UnitPrice, li.TotalPrice, li.PatientPayableAmount)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert line item"})
+			return
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit tx"})
+		return
+	}
+
+	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "accounts-billing",
+		Action:       "CONSOLIDATE_CHARGES",
+		ResourceType: "Invoice",
+		ResourceID:   invID,
+		Status:       "SUCCESS",
+		Details: map[string]interface{}{
+			"admission_id": req.AdmissionID,
+			"total_amount": totalAmount.String(),
+		},
+	})
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Charges consolidated successfully", "invoice_id": invID})
 }

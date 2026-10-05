@@ -144,3 +144,7 @@ type RecordAdmissionDepositRequest struct {
 	PaymentMethod string          `json:"payment_method" binding:"required"` // CASH, POS, WALLET
 	Reference     string          `json:"reference"`
 }
+
+type ConsolidateChargesRequest struct {
+	AdmissionID string `json:"admission_id" binding:"required"`
+}

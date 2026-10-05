@@ -221,9 +221,9 @@ built, resolve these by picking the most defensible default from
 - [x] FR-AC-01: Create new invoice (NHIA-aware line items)
 - [x] FR-AC-02: Manage Invoices list (filters, aged invoice summary)
 - [x] FR-AC-03: Invoice actions (view/edit/status)
-- [ ] FR-AC-04: Invoice permissions (role defaults + per-user overrides)
+- [x] FR-AC-04: Invoice permissions (role defaults + per-user overrides)
 - [x] FR-AC-05: Delete invoice (password confirm + audit log — soft delete only)
-- [ ] FR-AC-06: Pull consolidated charges from Nursing Tasks/Notes at discharge
+- [x] FR-AC-06: Pull consolidated charges from Nursing Tasks/Notes at discharge
 - [x] FR-AC-07: Payment methods + receipt history
 - [x] FR-AC-08: Admission deposit enforcement (per Task 1 decision)
 
