@@ -206,14 +206,14 @@ built, resolve these by picking the most defensible default from
 - [x] Admission/ward/bed entities + migrations
 - [x] FR-NS-01: Admission intake flow (triage, ward/bed assignment, checklist)
 - [x] FR-NS-02: My Patients list (filter by Critical/High Risk/Stable)
-- [ ] FR-NS-03: Nursing Tasks (MAR-linked)
+- [x] FR-NS-03: Nursing Tasks (MAR-linked)
 - [x] FR-NS-04: Vital signs entry (manual + device-connect stub)
 - [x] FR-NS-05: Nursing Notes (structured types, tagging, sign-and-lock)
-- [ ] FR-NS-06: Care Plans (templates, interventions, progress tracking)
-- [ ] FR-NS-07: Shift Handover (endorsement list, dual sign-off)
-- [ ] FR-NS-08: Ward Management (bed map, staff allocation, ward inventory)
-- [ ] FR-NS-09: Discharge checklist
-- [ ] FR-NS-10: Wire discharge checklist completion to billing trigger
+- [x] FR-NS-06: Care Plans (templates, interventions, progress tracking)
+- [x] FR-NS-07: Shift Handover (endorsement list, dual sign-off)
+- [x] FR-NS-08: Ward Management (bed map, staff allocation, ward inventory)
+- [x] FR-NS-09: Discharge checklist
+- [x] FR-NS-10: Wire discharge checklist completion to billing trigger
       (per Task 1 decision)
 
 ### 2.3 Accounts & Billing

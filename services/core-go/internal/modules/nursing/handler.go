@@ -3,6 +3,7 @@ package nursing
 import (
 	"database/sql"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -32,6 +33,10 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	nursing.POST("/vitals", h.HandleCreateVitals)
 	nursing.POST("/notes", h.HandleCreateNursingNote)
 	nursing.GET("/my-patients", h.HandleGetMyPatients)
+	nursing.POST("/tasks", h.HandleCreateNursingTask)
+	nursing.POST("/care-plans", h.HandleCreateCarePlan)
+	nursing.POST("/shift-handovers", h.HandleCreateShiftHandover)
+	nursing.PUT("/admissions/:id/discharge-checklist", h.HandleUpdateDischargeChecklist)
 }
 
 func (h *Handler) HandleCreateAdmission(c *gin.Context) {
@@ -322,4 +327,197 @@ func (h *Handler) HandleGetMyPatients(c *gin.Context) {
 		"patients": patients,
 		"total":    len(patients),
 	})
+}
+
+func (h *Handler) HandleCreateNursingTask(c *gin.Context) {
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	var req CreateNursingTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		return
+	}
+
+	dueAt, err := time.Parse(time.RFC3339, req.DueAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid due_at format. Use RFC3339"})
+		return
+	}
+
+	query := `
+		INSERT INTO nursing_tasks (patient_id, admission_id, assigned_to, task_type, description, due_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, status, created_at, updated_at
+	`
+
+	var t NursingTask
+	t.PatientID = req.PatientID
+	t.AdmissionID = req.AdmissionID
+	t.AssignedTo = req.AssignedTo
+	t.TaskType = req.TaskType
+	t.Description = req.Description
+	t.DueAt = dueAt
+
+	err = h.db.QueryRowContext(c.Request.Context(), query, req.PatientID, req.AdmissionID, req.AssignedTo, req.TaskType, req.Description, dueAt).
+		Scan(&t.ID, &t.Status, &t.CreatedAt, &t.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create task: " + err.Error()})
+		return
+	}
+
+	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "CREATE_NURSING_TASK",
+		ResourceType: "NursingTask",
+		ResourceID:   t.ID,
+	})
+
+	c.JSON(http.StatusCreated, t)
+}
+
+func (h *Handler) HandleCreateCarePlan(c *gin.Context) {
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	var req CreateCarePlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	query := `
+		INSERT INTO care_plans (patient_id, admission_id, created_by, template_name, interventions, progress_notes)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, status, created_at, updated_at
+	`
+	var cp CarePlan
+	cp.PatientID = req.PatientID
+	cp.AdmissionID = req.AdmissionID
+	cp.CreatedBy = userID
+	cp.TemplateName = req.TemplateName
+	cp.Interventions = req.Interventions
+	cp.ProgressNotes = req.ProgressNotes
+
+	err := h.db.QueryRowContext(c.Request.Context(), query, req.PatientID, req.AdmissionID, userID, req.TemplateName, req.Interventions, req.ProgressNotes).
+		Scan(&cp.ID, &cp.Status, &cp.CreatedAt, &cp.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create care plan"})
+		return
+	}
+
+	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "CREATE_CARE_PLAN",
+		ResourceType: "CarePlan",
+		ResourceID:   cp.ID,
+	})
+	c.JSON(http.StatusCreated, cp)
+}
+
+func (h *Handler) HandleCreateShiftHandover(c *gin.Context) {
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	var req CreateShiftHandoverRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	query := `
+		INSERT INTO shift_handovers (ward_id, outgoing_nurse_id, shift_date, shift_type, endorsement_notes)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, status, created_at, updated_at
+	`
+	var sh ShiftHandover
+	sh.WardID = req.WardID
+	sh.OutgoingNurseID = userID
+	sh.ShiftDate = req.ShiftDate
+	sh.ShiftType = req.ShiftType
+	sh.EndorsementNotes = req.EndorsementNotes
+
+	err := h.db.QueryRowContext(c.Request.Context(), query, req.WardID, userID, req.ShiftDate, req.ShiftType, req.EndorsementNotes).
+		Scan(&sh.ID, &sh.Status, &sh.CreatedAt, &sh.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create shift handover: " + err.Error()})
+		return
+	}
+
+	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "CREATE_SHIFT_HANDOVER",
+		ResourceType: "ShiftHandover",
+		ResourceID:   sh.ID,
+	})
+	c.JSON(http.StatusCreated, sh)
+}
+
+func (h *Handler) HandleUpdateDischargeChecklist(c *gin.Context) {
+	admissionID := c.Param("id")
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	var req UpdateDischargeChecklistRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	query := `
+		INSERT INTO discharge_checklists (
+			admission_id, completed_by, medications_reconciled, follow_up_scheduled, patient_educated, billing_cleared
+		) VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (admission_id) DO UPDATE SET
+			completed_by = $2,
+			medications_reconciled = $3,
+			follow_up_scheduled = $4,
+			patient_educated = $5,
+			billing_cleared = $6,
+			updated_at = CURRENT_TIMESTAMP
+		RETURNING id, status, created_at, updated_at
+	`
+
+	var dc DischargeChecklist
+	dc.AdmissionID = admissionID
+	dc.CompletedBy = userID
+	dc.MedicationsReconciled = req.MedicationsReconciled
+	dc.FollowUpScheduled = req.FollowUpScheduled
+	dc.PatientEducated = req.PatientEducated
+	dc.BillingCleared = req.BillingCleared
+
+	err := h.db.QueryRowContext(c.Request.Context(), query, admissionID, userID, req.MedicationsReconciled, req.FollowUpScheduled, req.PatientEducated, req.BillingCleared).
+		Scan(&dc.ID, &dc.Status, &dc.CreatedAt, &dc.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update discharge checklist"})
+		return
+	}
+
+	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "UPDATE_DISCHARGE_CHECKLIST",
+		ResourceType: "DischargeChecklist",
+		ResourceID:   dc.ID,
+	})
+	c.JSON(http.StatusOK, dc)
 }
