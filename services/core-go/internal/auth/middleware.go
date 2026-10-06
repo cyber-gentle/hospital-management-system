@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"database/sql"
 )
 
 const (
@@ -103,6 +104,44 @@ func InternalServiceAuthRequired(internalKey string) gin.HandlerFunc {
 		if subtle.ConstantTimeCompare([]byte(providedKey), []byte(internalKey)) != 1 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Unauthorized internal service call",
+			})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+
+// RequirePermission checks if a user has a specific permission via role defaults OR per-user overrides
+func RequirePermission(db *sql.DB, module, action string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleVal, _ := c.Get(ContextUserRole)
+		userRole, _ := roleVal.(string)
+
+		userIDVal, _ := c.Get(ContextUserID)
+		userID, _ := userIDVal.(string)
+
+		if userRole == "ADMIN" {
+			c.Next()
+			return
+		}
+
+		permissionID := strings.ToLower(module + ":" + action)
+
+		query := `
+			SELECT EXISTS (
+				SELECT 1 FROM role_permissions WHERE role = $1 AND permission_id = $2
+				UNION ALL
+				SELECT 1 FROM user_permissions WHERE user_id = $3 AND permission_id = $2
+			)`
+
+		var allowed bool
+		err := db.QueryRowContext(c.Request.Context(), query, userRole, permissionID, userID).Scan(&allowed)
+		
+		if err != nil || !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Insufficient permissions to access this resource",
 			})
 			return
 		}
