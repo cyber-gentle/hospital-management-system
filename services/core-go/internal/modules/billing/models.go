@@ -7,23 +7,23 @@ import (
 )
 
 type Invoice struct {
-	ID             string            `json:"id"`
-	InvoiceNumber  string            `json:"invoice_number"`
-	PatientID      string            `json:"patient_id"`
-	AdmissionID    *string           `json:"admission_id,omitempty"`
-	Subtotal       decimal.Decimal   `json:"subtotal"`
-	Tax            decimal.Decimal   `json:"tax"`
-	Discount       decimal.Decimal   `json:"discount"`
-	NHIACoverage   decimal.Decimal   `json:"nhia_coverage"`
-	TotalAmount    decimal.Decimal   `json:"total_amount"`
-	PaidAmount     decimal.Decimal   `json:"paid_amount"`
-	BalanceDue     decimal.Decimal   `json:"balance_due"`
-	Status         string            `json:"status"`
-	CreatedBy      string            `json:"created_by"`
-	DueDate        *time.Time        `json:"due_date,omitempty"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
-	LineItems      []InvoiceLineItem `json:"line_items,omitempty"`
+	ID            string            `json:"id"`
+	InvoiceNumber string            `json:"invoice_number"`
+	PatientID     string            `json:"patient_id"`
+	AdmissionID   *string           `json:"admission_id,omitempty"`
+	Subtotal      decimal.Decimal   `json:"subtotal"`
+	Tax           decimal.Decimal   `json:"tax"`
+	Discount      decimal.Decimal   `json:"discount"`
+	NHIACoverage  decimal.Decimal   `json:"nhia_coverage"`
+	TotalAmount   decimal.Decimal   `json:"total_amount"`
+	PaidAmount    decimal.Decimal   `json:"paid_amount"`
+	BalanceDue    decimal.Decimal   `json:"balance_due"`
+	Status        string            `json:"status"`
+	CreatedBy     string            `json:"created_by"`
+	DueDate       *time.Time        `json:"due_date,omitempty"`
+	CreatedAt     time.Time         `json:"created_at"`
+	UpdatedAt     time.Time         `json:"updated_at"`
+	LineItems     []InvoiceLineItem `json:"line_items,omitempty"`
 }
 
 type InvoiceLineItem struct {
@@ -41,12 +41,12 @@ type InvoiceLineItem struct {
 }
 
 type CreateInvoiceRequest struct {
-	PatientID   string                   `json:"patient_id" binding:"required"`
-	AdmissionID *string                  `json:"admission_id"`
-	Discount    decimal.Decimal          `json:"discount"`
-	Tax         decimal.Decimal          `json:"tax"`
-	DueDate     *time.Time               `json:"due_date"`
-	LineItems   []CreateLineItemRequest  `json:"line_items" binding:"required,min=1"`
+	PatientID   string                  `json:"patient_id" binding:"required"`
+	AdmissionID *string                 `json:"admission_id"`
+	Discount    decimal.Decimal         `json:"discount"`
+	Tax         decimal.Decimal         `json:"tax"`
+	DueDate     *time.Time              `json:"due_date"`
+	LineItems   []CreateLineItemRequest `json:"line_items" binding:"required,min=1,dive"`
 }
 
 type CreateLineItemRequest struct {
@@ -75,7 +75,7 @@ type CreatePaymentRequest struct {
 	InvoiceID        *string         `json:"invoice_id"`
 	PatientID        string          `json:"patient_id" binding:"required"`
 	AmountPaid       decimal.Decimal `json:"amount_paid" binding:"required"`
-	PaymentMethod    string          `json:"payment_method" binding:"required"`
+	PaymentMethod    string          `json:"payment_method" binding:"required,oneof=CASH POS TRANSFER NHIA WALLET"`
 	PaymentReference *string         `json:"payment_reference"`
 }
 
@@ -115,8 +115,8 @@ type WalletTransaction struct {
 type FundWalletManualRequest struct {
 	PatientID     string          `json:"patient_id" binding:"required"`
 	Amount        decimal.Decimal `json:"amount" binding:"required"`
-	PaymentMethod string          `json:"payment_method" binding:"required"` // 'CASH', 'POS'
-	Reference     string          `json:"reference" binding:"required"`      // Receipt/Teller No
+	PaymentMethod string          `json:"payment_method" binding:"required,oneof=CASH POS"` // Cashier-confirmed cash or card funding only.
+	Reference     string          `json:"reference" binding:"required"`                     // Receipt/Teller No
 }
 
 type WebhookPayload struct {
@@ -141,7 +141,7 @@ type RecordAdmissionDepositRequest struct {
 	AdmissionID   string          `json:"admission_id" binding:"required"`
 	PatientID     string          `json:"patient_id" binding:"required"`
 	AmountPaid    decimal.Decimal `json:"amount_paid" binding:"required"`
-	PaymentMethod string          `json:"payment_method" binding:"required"` // CASH, POS, WALLET
+	PaymentMethod string          `json:"payment_method" binding:"required,oneof=CASH POS TRANSFER NHIA WALLET"` // CASH, POS, WALLET
 	Reference     string          `json:"reference"`
 }
 

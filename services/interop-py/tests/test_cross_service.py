@@ -26,17 +26,68 @@ import socket
 import subprocess
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 
 import httpx
 import pytest
+import jwt
 
 from clients.core_client import AuditLogPayload, CoreServiceClient, CoreServiceError
 
 # services/interop-py/tests/test_cross_service.py -> services/
 SERVICES_DIR = Path(__file__).resolve().parents[2]
 CORE_GO_DIR = SERVICES_DIR / "core-go"
+
+
+async def test_user_grants_and_revocation_use_real_core_authority(core_service: CoreService, db) -> None:
+    identifier = uuid.uuid4().hex
+    role = "SYNTHETIC_" + identifier[:12]
+    action = "synthetic_" + identifier
+    permission = "laboratory:" + action
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO users (username,email,password_hash,first_name,last_name,role,department) VALUES (%s,%s,'synthetic','Synthetic','User',%s,'Test') RETURNING id", (identifier, identifier + "@example.invalid", role))
+        user_id = str(cursor.fetchone()[0])
+        cursor.execute("INSERT INTO permissions (id,module,action) VALUES (%s,'laboratory',%s)", (permission,action))
+    client = core_service.client()
+    # A stale or misleading ADMIN token role cannot override the live record.
+    assert await client.check_authorization("ADMIN", "laboratory", action, user_id) is False
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO user_permissions (user_id,permission_id,granted_by) VALUES (%s,%s,%s)", (user_id,permission,user_id))
+    assert await client.check_authorization(role, "laboratory", action, user_id) is True
+    with db.cursor() as cursor:
+        cursor.execute("UPDATE users SET is_active=false WHERE id=%s", (user_id,))
+    assert await client.check_authorization(role, "laboratory", action, user_id) is False
+
+
+async def test_lab_scaffold_never_reports_an_unpersisted_order_as_created(
+    core_service: CoreService, db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Exercise both real Go endpoints from the actual Python HTTP route.
+    monkeypatch.setenv("JWT_SECRET", TEST_JWT_SECRET)
+    monkeypatch.setenv("INTERNAL_SERVICE_KEY", TEST_INTERNAL_KEY)
+    monkeypatch.setenv("CORE_SERVICE_URL", core_service.base_url)
+    import main
+    from auth.jwt import TokenVerifier
+
+    monkeypatch.setattr(main, "core_client", core_service.client())
+    main.app.dependency_overrides[main.verify_token] = TokenVerifier(TEST_JWT_SECRET)
+    identifier = uuid.uuid4().hex
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO users (username,email,password_hash,first_name,last_name,role,department) VALUES (%s,%s,'synthetic','Synthetic','User','ADMIN','Test') RETURNING id", (identifier, identifier + "@example.invalid"))
+        user_id = str(cursor.fetchone()[0])
+    token = jwt.encode({"user_id": user_id, "sub": user_id, "username": identifier, "role": "ADMIN", "department": "Test", "iss": "hims-core-go", "aud": "hims-clients", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://interop.test") as client:
+            response = await client.post("/api/v1/laboratory/orders", headers={"Authorization": "Bearer " + token}, json={"order_id": identifier, "patient_id": "synthetic-patient", "test_code": "SYNTHETIC"})
+        assert response.status_code == 501
+        assert "no order was created" in response.json()["detail"]
+        with db.cursor() as cursor:
+            cursor.execute("SELECT action,status FROM audit_logs WHERE user_id=%s AND resource_id=%s", (user_id,identifier))
+            assert cursor.fetchall() == [("LAB_ORDER_UNAVAILABLE", "FAILURE")]
+    finally:
+        main.app.dependency_overrides.clear()
 
 # Long enough to clear config.Load's minimums, and distinct from the placeholder
 # values the service refuses to boot with.

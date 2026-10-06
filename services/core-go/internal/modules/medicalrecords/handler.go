@@ -2,7 +2,6 @@ package medicalrecords
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +10,7 @@ import (
 
 	"hospital-hims/services/core-go/internal/auditlog"
 	"hospital-hims/services/core-go/internal/auth"
+	"hospital-hims/services/core-go/internal/common"
 )
 
 type Handler struct {
@@ -31,11 +31,11 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	mr := router.Group("/medical-records")
 	mr.Use(auth.AuthRequired(h.tokens)) // Ensure valid JWT
 
-	mr.POST("/patients", h.HandleCreatePatient)
-	mr.GET("/patients", h.HandleSearchPatients)
-	mr.GET("/patients/:id", h.HandleGetPatient)
-	mr.POST("/patients/:id/id-card", h.HandleGenerateIDCard)
-	mr.GET("/patients/:id/payment-status", h.HandleGetPaymentStatus)
+	mr.POST("/patients", auth.RequirePermission(h.db, "medicalrecords", "write"), h.HandleCreatePatient)
+	mr.GET("/patients", auth.RequirePermission(h.db, "medicalrecords", "read"), h.HandleSearchPatients)
+	mr.GET("/patients/:id", auth.RequirePermission(h.db, "medicalrecords", "read"), h.HandleGetPatient)
+	mr.POST("/patients/:id/id-card", auth.RequirePermission(h.db, "medicalrecords", "read"), h.HandleGenerateIDCard)
+	mr.GET("/patients/:id/payment-status", auth.RequirePermission(h.db, "medicalrecords", "read"), h.HandleGetPaymentStatus)
 }
 
 func (h *Handler) HandleCreatePatient(c *gin.Context) {
@@ -59,9 +59,19 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 		return
 	}
 
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+
 	// Generate Hospital Number
-	year := time.Now().Year()
-	hospitalNumber := fmt.Sprintf("HIMS-%d-%05d", year, time.Now().UnixNano()%100000)
+	hospitalNumber, err := common.NextNumber(c.Request.Context(), tx, "HIMS")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate hospital number"})
+		return
+	}
 
 	query := `
 		INSERT INTO patients (
@@ -98,7 +108,7 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 	patient.RegistrationFeeReceiptNo = req.RegistrationFeeReceiptNo
 	patient.IsActive = true
 
-	err = h.db.QueryRowContext(
+	err = tx.QueryRowContext(
 		c.Request.Context(), query,
 		hospitalNumber, req.FirstName, req.LastName, req.OtherNames, dob, req.Gender,
 		req.PhoneNumber, req.Email, req.Address, req.BloodGroup, req.Genotype, req.MaritalStatus,
@@ -112,7 +122,7 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 		return
 	}
 
-	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	err = h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -129,7 +139,12 @@ func (h *Handler) HandleCreatePatient(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
 	}
 
@@ -177,10 +192,15 @@ func (h *Handler) HandleSearchPatients(c *gin.Context) {
 			&p.NHIANumber, &p.NHIAScheme, &p.PaymentCategory, &p.RegistrationFeePaid, &p.RegistrationFeeReceiptNo,
 			&p.IsActive, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
-			continue
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read patient records"})
+			return
 		}
 		p.DateOfBirth = dob.Format("2006-01-02")
 		patients = append(patients, p)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to complete patient search"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -191,6 +211,10 @@ func (h *Handler) HandleSearchPatients(c *gin.Context) {
 
 func (h *Handler) HandleGetPatient(c *gin.Context) {
 	id := c.Param("id")
+	role := c.GetString(auth.ContextUserRole)
+	if (role == "NURSE" || role == "DOCTOR") && !common.PatientFolderAccess(c, h.db, id) {
+		return
+	}
 
 	query := `
 		SELECT id, hospital_number, first_name, last_name, other_names, date_of_birth, gender,
@@ -269,7 +293,7 @@ func (h *Handler) HandleGenerateIDCard(c *gin.Context) {
 		BloodGroup:            bgroup,
 		Genotype:              genotype,
 		EmergencyContactPhone: emergPhone,
-		IssuedAt:              time.Now().Format(time.RFC3339),
+		IssuedAt:              time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Write mandatory audit log
@@ -289,7 +313,8 @@ func (h *Handler) HandleGenerateIDCard(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		fmt.Printf("failed to write audit log for PRINT_ID_CARD: %v\n", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable"})
+		return
 	}
 
 	c.JSON(http.StatusOK, cardData)
@@ -310,10 +335,14 @@ func (h *Handler) HandleGetPaymentStatus(c *gin.Context) {
 		return
 	}
 
-	// 2. Placeholder for pending deposits/invoices.
-	// Real implementation will join or query the 'invoices' and 'admissions' tables once those modules exist.
-	hasPendingDeposits := false
-	hasUnsettledInvoices := false
+	var hasPendingDeposits, hasUnsettledInvoices bool
+	err := h.db.QueryRowContext(c.Request.Context(), `SELECT
+		EXISTS (SELECT 1 FROM admissions a JOIN wards w ON w.id=a.ward_id WHERE a.patient_id=$1 AND a.status='ADMITTED' AND a.deleted_at IS NULL AND NOT w.is_accident_emergency AND NOT EXISTS (SELECT 1 FROM admission_deposits d WHERE d.admission_id=a.id AND d.patient_id=a.patient_id AND d.paid_amount>0 AND d.deleted_at IS NULL)),
+		EXISTS (SELECT 1 FROM invoices WHERE patient_id=$1 AND deleted_at IS NULL AND status NOT IN ('CANCELLED','DRAFT') AND balance_due>0)`, id).Scan(&hasPendingDeposits, &hasUnsettledInvoices)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to verify payment status"})
+		return
+	}
 	status := "CLEARED"
 
 	// Stub logic based on business rules:

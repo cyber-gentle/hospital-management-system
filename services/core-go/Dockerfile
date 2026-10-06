@@ -1,4 +1,4 @@
-FROM golang:alpine AS builder
+FROM golang:1.26.8-alpine AS builder
 
 WORKDIR /app
 
@@ -18,6 +18,9 @@ WORKDIR /app
 
 COPY --from=builder /app/server /app/server
 COPY --from=builder /app/migrations /app/migrations
+
+RUN addgroup -S hims && adduser -S -G hims hims
+USER hims
 
 EXPOSE 8080
 

@@ -9,6 +9,7 @@ import (
 
 	"hospital-hims/services/core-go/internal/auditlog"
 	"hospital-hims/services/core-go/internal/auth"
+	"hospital-hims/services/core-go/internal/common"
 )
 
 type Handler struct {
@@ -29,14 +30,14 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	nursing := router.Group("/nursing")
 	nursing.Use(auth.AuthRequired(h.tokens))
 
-	nursing.POST("/admissions", h.HandleCreateAdmission)
-	nursing.POST("/vitals", h.HandleCreateVitals)
-	nursing.POST("/notes", h.HandleCreateNursingNote)
-	nursing.GET("/my-patients", h.HandleGetMyPatients)
-	nursing.POST("/tasks", h.HandleCreateNursingTask)
-	nursing.POST("/care-plans", h.HandleCreateCarePlan)
-	nursing.POST("/shift-handovers", h.HandleCreateShiftHandover)
-	nursing.PUT("/admissions/:id/discharge-checklist", h.HandleUpdateDischargeChecklist)
+	nursing.POST("/admissions", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateAdmission)
+	nursing.POST("/vitals", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateVitals)
+	nursing.POST("/notes", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateNursingNote)
+	nursing.GET("/my-patients", auth.RequirePermission(h.db, "nursing", "read"), h.HandleGetMyPatients)
+	nursing.POST("/tasks", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateNursingTask)
+	nursing.POST("/care-plans", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateCarePlan)
+	nursing.POST("/shift-handovers", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateShiftHandover)
+	nursing.PUT("/admissions/:id/discharge-checklist", auth.RequirePermission(h.db, "nursing", "write"), h.HandleUpdateDischargeChecklist)
 }
 
 func (h *Handler) HandleCreateAdmission(c *gin.Context) {
@@ -60,19 +61,32 @@ func (h *Handler) HandleCreateAdmission(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	// 1. Verify patient exists and is not already admitted
-	var pCount int
-	err = tx.QueryRowContext(c.Request.Context(), `SELECT COUNT(*) FROM patients WHERE id = $1 AND deleted_at IS NULL`, req.PatientID).Scan(&pCount)
-	if err != nil || pCount == 0 {
+	var patientID string
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT id FROM patients WHERE id = $1 AND deleted_at IS NULL AND is_active = true FOR UPDATE`, req.PatientID).Scan(&patientID)
+	if err == sql.ErrNoRows {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify patient"})
+		return
+	}
+	var admitted bool
+	if err := tx.QueryRowContext(c.Request.Context(), `SELECT EXISTS (SELECT 1 FROM admissions WHERE patient_id=$1 AND status='ADMITTED' AND deleted_at IS NULL)`, req.PatientID).Scan(&admitted); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify admission"})
+		return
+	}
+	if admitted {
+		c.JSON(http.StatusConflict, gin.H{"error": "Patient already has an active admission"})
 		return
 	}
 
 	// 2. Verify bed is AVAILABLE
 	var bedStatus string
-	err = tx.QueryRowContext(c.Request.Context(), `SELECT status FROM beds WHERE id = $1 AND ward_id = $2 AND deleted_at IS NULL`, req.BedID, req.WardID).Scan(&bedStatus)
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT b.status FROM beds b JOIN wards w ON w.id=b.ward_id WHERE b.id = $1 AND b.ward_id = $2 AND b.deleted_at IS NULL AND b.is_active = true AND w.deleted_at IS NULL AND w.is_active = true FOR UPDATE OF b`, req.BedID, req.WardID).Scan(&bedStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Bed not found in the specified ward"})
@@ -115,13 +129,8 @@ func (h *Handler) HandleCreateAdmission(c *gin.Context) {
 		return
 	}
 
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
 	// Audit log
-	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	err = h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -138,7 +147,12 @@ func (h *Handler) HandleCreateAdmission(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
 	}
 
@@ -157,6 +171,19 @@ func (h *Handler) HandleCreateVitals(c *gin.Context) {
 	var req CreateVitalsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		return
+	}
+
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+	if req.AdmissionID != nil && !common.AdmissionFolderAccess(c, tx, *req.AdmissionID, req.PatientID) {
+		return
+	}
+	if req.AdmissionID == nil && !common.PatientFolderAccess(c, tx, req.PatientID) {
 		return
 	}
 
@@ -182,7 +209,7 @@ func (h *Handler) HandleCreateVitals(c *gin.Context) {
 	v.Height = req.Height
 	v.Notes = req.Notes
 
-	err := h.db.QueryRowContext(
+	err = tx.QueryRowContext(
 		c.Request.Context(), query,
 		req.PatientID, req.AdmissionID, userID, req.Temperature, req.BloodPressure,
 		req.PulseRate, req.RespiratoryRate, req.SpO2, req.Weight, req.Height, req.Notes,
@@ -194,7 +221,7 @@ func (h *Handler) HandleCreateVitals(c *gin.Context) {
 	}
 
 	// Audit log
-	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	err = h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -209,7 +236,12 @@ func (h *Handler) HandleCreateVitals(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
 	}
 
@@ -231,6 +263,16 @@ func (h *Handler) HandleCreateNursingNote(c *gin.Context) {
 		return
 	}
 
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+	if !common.AdmissionFolderAccess(c, tx, req.AdmissionID, req.PatientID) {
+		return
+	}
+
 	query := `
 		INSERT INTO nursing_notes (
 			patient_id, admission_id, recorded_by, note_type, notes
@@ -246,7 +288,7 @@ func (h *Handler) HandleCreateNursingNote(c *gin.Context) {
 	n.NoteType = req.NoteType
 	n.Notes = req.Notes
 
-	err := h.db.QueryRowContext(
+	err = tx.QueryRowContext(
 		c.Request.Context(), query,
 		req.PatientID, req.AdmissionID, userID, req.NoteType, req.Notes,
 	).Scan(&n.ID, &n.RecordedAt, &n.CreatedAt, &n.UpdatedAt)
@@ -257,7 +299,7 @@ func (h *Handler) HandleCreateNursingNote(c *gin.Context) {
 	}
 
 	// Audit log
-	err = h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	err = h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -273,7 +315,12 @@ func (h *Handler) HandleCreateNursingNote(c *gin.Context) {
 		},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write audit log: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
 	}
 
@@ -310,19 +357,22 @@ func (h *Handler) HandleGetMyPatients(c *gin.Context) {
 			&mp.PatientID, &mp.AdmissionID, &mp.HospitalNumber,
 			&mp.FirstName, &mp.LastName, &mp.WardName, &mp.BedNumber, &mp.AdmittedAt,
 		); err != nil {
-			continue
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read patient records"})
+			return
 		}
 
-		// In a full implementation, risk level would be computed dynamically
-		// from the most recent vitals (e.g. MEWS score) or a designated column.
-		// For now, we stub it as "Stable".
-		mp.RiskLevel = "Stable"
+		// No validated assessment exists in this backend yet.
+		mp.RiskLevel = "Not assessed"
 
 		if riskFilter == "" || riskFilter == mp.RiskLevel {
 			patients = append(patients, mp)
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to complete patient query"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"patients": patients,
 		"total":    len(patients),
@@ -346,6 +396,16 @@ func (h *Handler) HandleCreateNursingTask(c *gin.Context) {
 		return
 	}
 
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+	if !common.AdmissionFolderAccess(c, tx, req.AdmissionID, req.PatientID) {
+		return
+	}
+
 	query := `
 		INSERT INTO nursing_tasks (patient_id, admission_id, assigned_to, task_type, description, due_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -360,14 +420,14 @@ func (h *Handler) HandleCreateNursingTask(c *gin.Context) {
 	t.Description = req.Description
 	t.DueAt = dueAt
 
-	err = h.db.QueryRowContext(c.Request.Context(), query, req.PatientID, req.AdmissionID, req.AssignedTo, req.TaskType, req.Description, dueAt).
+	err = tx.QueryRowContext(c.Request.Context(), query, req.PatientID, req.AdmissionID, req.AssignedTo, req.TaskType, req.Description, dueAt).
 		Scan(&t.ID, &t.Status, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create task: " + err.Error()})
 		return
 	}
 
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -376,7 +436,15 @@ func (h *Handler) HandleCreateNursingTask(c *gin.Context) {
 		Action:       "CREATE_NURSING_TASK",
 		ResourceType: "NursingTask",
 		ResourceID:   t.ID,
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusCreated, t)
 }
@@ -389,6 +457,16 @@ func (h *Handler) HandleCreateCarePlan(c *gin.Context) {
 	var req CreateCarePlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+	if !common.AdmissionFolderAccess(c, tx, req.AdmissionID, req.PatientID) {
 		return
 	}
 
@@ -405,14 +483,14 @@ func (h *Handler) HandleCreateCarePlan(c *gin.Context) {
 	cp.Interventions = req.Interventions
 	cp.ProgressNotes = req.ProgressNotes
 
-	err := h.db.QueryRowContext(c.Request.Context(), query, req.PatientID, req.AdmissionID, userID, req.TemplateName, req.Interventions, req.ProgressNotes).
+	err = tx.QueryRowContext(c.Request.Context(), query, req.PatientID, req.AdmissionID, userID, req.TemplateName, req.Interventions, req.ProgressNotes).
 		Scan(&cp.ID, &cp.Status, &cp.CreatedAt, &cp.UpdatedAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create care plan"})
 		return
 	}
 
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -421,7 +499,16 @@ func (h *Handler) HandleCreateCarePlan(c *gin.Context) {
 		Action:       "CREATE_CARE_PLAN",
 		ResourceType: "CarePlan",
 		ResourceID:   cp.ID,
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
 	c.JSON(http.StatusCreated, cp)
 }
 
@@ -436,6 +523,13 @@ func (h *Handler) HandleCreateShiftHandover(c *gin.Context) {
 		return
 	}
 
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+
 	query := `
 		INSERT INTO shift_handovers (ward_id, outgoing_nurse_id, shift_date, shift_type, endorsement_notes)
 		VALUES ($1, $2, $3, $4, $5)
@@ -448,14 +542,14 @@ func (h *Handler) HandleCreateShiftHandover(c *gin.Context) {
 	sh.ShiftType = req.ShiftType
 	sh.EndorsementNotes = req.EndorsementNotes
 
-	err := h.db.QueryRowContext(c.Request.Context(), query, req.WardID, userID, req.ShiftDate, req.ShiftType, req.EndorsementNotes).
+	err = tx.QueryRowContext(c.Request.Context(), query, req.WardID, userID, req.ShiftDate, req.ShiftType, req.EndorsementNotes).
 		Scan(&sh.ID, &sh.Status, &sh.CreatedAt, &sh.UpdatedAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create shift handover: " + err.Error()})
 		return
 	}
 
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -464,7 +558,16 @@ func (h *Handler) HandleCreateShiftHandover(c *gin.Context) {
 		Action:       "CREATE_SHIFT_HANDOVER",
 		ResourceType: "ShiftHandover",
 		ResourceID:   sh.ID,
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
 	c.JSON(http.StatusCreated, sh)
 }
 
@@ -477,6 +580,16 @@ func (h *Handler) HandleUpdateDischargeChecklist(c *gin.Context) {
 	var req UpdateDischargeChecklistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+	if !common.AdmissionFolderAccess(c, tx, admissionID, "") {
 		return
 	}
 
@@ -502,14 +615,14 @@ func (h *Handler) HandleUpdateDischargeChecklist(c *gin.Context) {
 	dc.PatientEducated = req.PatientEducated
 	dc.BillingCleared = req.BillingCleared
 
-	err := h.db.QueryRowContext(c.Request.Context(), query, admissionID, userID, req.MedicationsReconciled, req.FollowUpScheduled, req.PatientEducated, req.BillingCleared).
+	err = tx.QueryRowContext(c.Request.Context(), query, admissionID, userID, req.MedicationsReconciled, req.FollowUpScheduled, req.PatientEducated, req.BillingCleared).
 		Scan(&dc.ID, &dc.Status, &dc.CreatedAt, &dc.UpdatedAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update discharge checklist"})
 		return
 	}
 
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -518,6 +631,15 @@ func (h *Handler) HandleUpdateDischargeChecklist(c *gin.Context) {
 		Action:       "UPDATE_DISCHARGE_CHECKLIST",
 		ResourceType: "DischargeChecklist",
 		ResourceID:   dc.ID,
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
 	c.JSON(http.StatusOK, dc)
 }

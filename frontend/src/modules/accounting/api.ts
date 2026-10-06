@@ -1,3 +1,4 @@
+import { requireDemoMode } from '../../lib/demo';
 import { fallbackFetch, rethrowBackendRejection } from '../../lib/fallback';
 import {
   Account,
@@ -26,6 +27,7 @@ const STORAGE_KEY_CBT = "hims_accounting_cbt_v1";
 const STORAGE_KEY_RECON = "hims_accounting_recon_v1";
 
 function getStoredAccounts(): Account[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ACCOUNTS);
     if (!raw) {
@@ -44,10 +46,12 @@ function setStoredAccounts(accounts: Account[]): void {
     localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
   } catch (e) {
     console.error("Failed to save chart of accounts", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
 function getStoredJVs(): JournalVoucher[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_JV);
     if (!raw) {
@@ -66,10 +70,12 @@ function setStoredJVs(jvs: JournalVoucher[]): void {
     localStorage.setItem(STORAGE_KEY_JV, JSON.stringify(jvs));
   } catch (e) {
     console.error("Failed to save journal vouchers", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
 function getStoredCBT(): CashBankTransaction[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CBT);
     if (!raw) {
@@ -88,10 +94,12 @@ function setStoredCBT(txs: CashBankTransaction[]): void {
     localStorage.setItem(STORAGE_KEY_CBT, JSON.stringify(txs));
   } catch (e) {
     console.error("Failed to save cash/bank transactions", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
 function getStoredRecon(): ReconciliationItem[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_RECON);
     if (!raw) {
@@ -110,6 +118,7 @@ function setStoredRecon(items: ReconciliationItem[]): void {
     localStorage.setItem(STORAGE_KEY_RECON, JSON.stringify(items));
   } catch (e) {
     console.error("Failed to save reconciliation items", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
@@ -195,10 +204,19 @@ export const accountingApi = {
       // fallback
     }
 
-    const totalDebit = req.items.reduce((sum, item) => sum + item.debit, 0);
-    const totalCredit = req.items.reduce((sum, item) => sum + item.credit, 0);
+    const accounts = getStoredAccounts();
+    if (req.items.length < 2 || req.items.some(item => {
+      const account = accounts.find(a => a.id === item.accountId && a.code === item.accountCode && a.isActive);
+      return !account || !Number.isFinite(item.debit) || !Number.isFinite(item.credit) || item.debit < 0 || item.credit < 0 ||
+        (item.debit > 0) === (item.credit > 0) ||
+        Math.abs(item.debit * 100 - Math.round(item.debit * 100)) > 0.000001 || Math.abs(item.credit * 100 - Math.round(item.credit * 100)) > 0.000001;
+    })) throw new Error('Journal lines require active matching accounts and a positive debit or credit at kobo precision.');
+    const debitKobo = req.items.reduce((sum, item) => sum + Math.round(item.debit * 100), 0);
+    const creditKobo = req.items.reduce((sum, item) => sum + Math.round(item.credit * 100), 0);
+    const totalDebit = debitKobo / 100;
+    const totalCredit = creditKobo / 100;
 
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    if (!Number.isSafeInteger(debitKobo) || !Number.isSafeInteger(creditKobo) || debitKobo !== creditKobo) {
       throw new Error(
         `Journal entry is out of balance. Total Debit (₦${totalDebit.toLocaleString()}) must equal Total Credit (₦${totalCredit.toLocaleString()}).`
       );
@@ -257,6 +275,8 @@ export const accountingApi = {
 
     const currentJv = jvs[jvIndex];
     if (!currentJv) throw new Error("Journal voucher not found");
+	if (currentJv.status === 'POSTED') return currentJv;
+	if (currentJv.status !== 'PENDING_APPROVAL') throw new Error('Only pending vouchers can be approved.');
 
     const now = new Date().toISOString();
     const updatedJv: JournalVoucher = {
@@ -314,6 +334,7 @@ export const accountingApi = {
     if (!bankAcc || !contraAcc) {
       throw new Error("Specified accounts not found in General Ledger.");
     }
+    if (!bankAcc.isActive || !contraAcc.isActive || bankAcc.id === contraAcc.id || bankAcc.type !== 'ASSET' || !Number.isFinite(req.amount) || req.amount <= 0 || Math.abs(req.amount * 100 - Math.round(req.amount * 100)) > 0.000001) throw new Error('Cash/bank transactions require distinct active accounts and a positive amount at kobo precision.');
 
     const serial = String(txs.length + 124).padStart(4, "0");
     const now = new Date().toISOString();
@@ -342,10 +363,10 @@ export const accountingApi = {
     // Update balances
     if (req.type === "RECEIPT") {
       bankAcc.balance += req.amount;
-      contraAcc.balance += req.amount;
+      contraAcc.balance += (contraAcc.type === 'ASSET' || contraAcc.type === 'EXPENSE') ? -req.amount : req.amount;
     } else {
       bankAcc.balance -= req.amount;
-      contraAcc.balance += req.amount;
+      contraAcc.balance += (contraAcc.type === 'ASSET' || contraAcc.type === 'EXPENSE') ? req.amount : -req.amount;
     }
     setStoredAccounts(accounts);
 
@@ -394,7 +415,7 @@ export const accountingApi = {
       items,
       totalDebit,
       totalCredit,
-      isBalanced: Math.abs(totalDebit - totalCredit) < 1,
+      isBalanced: Math.round(totalDebit * 100) === Math.round(totalCredit * 100),
     };
   },
 
@@ -466,7 +487,7 @@ export const accountingApi = {
       totalLiabilities,
       equity,
       totalEquity,
-      isBalanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1,
+      isBalanced: Math.round(totalAssets * 100) === Math.round((totalLiabilities + totalEquity) * 100),
     };
   },
 

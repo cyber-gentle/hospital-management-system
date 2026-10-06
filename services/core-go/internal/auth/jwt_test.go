@@ -4,10 +4,29 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func testTokenService() *TokenService {
 	return NewTokenService([]byte("test-secret-key-that-is-long-enough-for-hmac"))
+}
+
+func TestValidateRequiresExpirationAndAudience(t *testing.T) {
+	s := testTokenService()
+	for _, claims := range []jwt.MapClaims{
+		{"iss": tokenIssuer, "aud": "hims-clients"},
+		{"iss": tokenIssuer, "aud": "other-service", "exp": time.Now().Add(time.Hour).Unix()},
+		{"iss": tokenIssuer, "exp": time.Now().Add(time.Hour).Unix()},
+	} {
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Validate(token); err == nil {
+			t.Fatalf("accepted incomplete or foreign claims: %v", claims)
+		}
+	}
 }
 
 func TestGenerateAndValidateToken(t *testing.T) {

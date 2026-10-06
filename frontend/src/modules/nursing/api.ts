@@ -21,6 +21,7 @@ import {
   INITIAL_DISCHARGES
 } from './mockData';
 import { billingApi } from '../billing/api';
+import { requireDemoMode, AUTOMATIC_DISCHARGE_BILLING_ENABLED } from '../../lib/demo';
 
 const STORAGE_KEYS = {
   WARDS: 'hims_nursing_wards_v1',
@@ -36,6 +37,7 @@ const STORAGE_KEYS = {
 
 // Safe storage utilities with hydration
 function getStored<T>(key: string, fallback: T): T {
+	requireDemoMode();
   try {
     const raw = localStorage.getItem(key);
     if (!raw) {
@@ -53,6 +55,7 @@ function setStored<T>(key: string, value: T): void {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
     console.error(`Failed to persist to localStorage [${key}]`, e);
+	throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
@@ -467,11 +470,12 @@ export const nursingApi = {
 
   // FR-NS-10: Trigger billing invoice generation upon verified discharge
   triggerDischargeBilling: async (admissionId: string): Promise<{ invoiceId: string; dischargedAt: string }> => {
+	if (!AUTOMATIC_DISCHARGE_BILLING_ENABLED) throw new Error('Automatic discharge billing is disabled until approved tariffs are configured.');
     const dossiers = getStored<DischargeDossier[]>(STORAGE_KEYS.DISCHARGES, INITIAL_DISCHARGES);
     const dossier = dossiers.find(d => d.admissionId === admissionId);
 
-    if (!dossier || !(dossier.items.every(item => item.completed) || (dossier.hasMatronOverride && dossier.matronOverrideReason?.trim() && dossier.matronOverrideBy?.trim()))) {
-      throw new Error('Discharge checklist must be 100% complete (or have Matron override) before generating billing invoice');
+    if (!dossier || !dossier.items.length || !dossier.items.every(item => item.completed)) {
+      throw new Error('Discharge checklist must be 100% complete before generating billing invoice');
     }
 
     if (dossier.billingTriggered && dossier.billingInvoiceId && dossier.dischargedAt) {

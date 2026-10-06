@@ -1,3 +1,4 @@
+import { requireDemoMode } from '../../lib/demo';
 import { fallbackFetch, rethrowBackendRejection } from '../../lib/fallback';
 import {
   CreateRequisitionRequest,
@@ -20,6 +21,7 @@ const STORAGE_KEY_REQS = "hims_substore_requisitions_v1";
 const STORAGE_KEY_AUDITS = "hims_substore_audits_v1";
 
 function getStoredSubstores(): Substore[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SUBSTORES);
     if (!raw) {
@@ -34,6 +36,7 @@ function getStoredSubstores(): Substore[] {
 }
 
 function getStoredItems(): SubstoreItem[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ITEMS);
     if (!raw) {
@@ -52,10 +55,12 @@ function setStoredItems(items: SubstoreItem[]): void {
     localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(items));
   } catch (e) {
     console.error("Failed to save substore items", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
 function getStoredRequisitions(): Requisition[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_REQS);
     if (!raw) {
@@ -74,10 +79,12 @@ function setStoredRequisitions(reqs: Requisition[]): void {
     localStorage.setItem(STORAGE_KEY_REQS, JSON.stringify(reqs));
   } catch (e) {
     console.error("Failed to save requisitions", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
 function getStoredAudits(): StockAdjustmentAuditEntry[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_AUDITS);
     if (!raw) {
@@ -96,6 +103,7 @@ function setStoredAudits(audits: StockAdjustmentAuditEntry[]): void {
     localStorage.setItem(STORAGE_KEY_AUDITS, JSON.stringify(audits));
   } catch (e) {
     console.error("Failed to save stock audits", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 

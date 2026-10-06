@@ -1,4 +1,5 @@
 import { rethrowBackendRejection } from '../../lib/fallback';
+import { requireDemoMode } from '../../lib/demo';
 import { apiRequest } from "../../lib/api";
 import {
   Patient,
@@ -11,6 +12,7 @@ import { INITIAL_PATIENTS } from "./mockData";
 const STORAGE_KEY = "hims_patients_local_db";
 
 function getLocalPatients(): Patient[] {
+	requireDemoMode();
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PATIENTS));

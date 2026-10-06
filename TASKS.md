@@ -203,29 +203,29 @@ built, resolve these by picking the most defensible default from
 - [ ] FR-MR-06: Payment-before-service enforcement (depends on Task 1 decision)
 
 ### 2.2 Nursing Services
-- [x] Admission/ward/bed entities + migrations
-- [x] FR-NS-01: Admission intake flow (triage, ward/bed assignment, checklist)
-- [x] FR-NS-02: My Patients list (filter by Critical/High Risk/Stable)
-- [x] FR-NS-03: Nursing Tasks (MAR-linked)
-- [x] FR-NS-04: Vital signs entry (manual + device-connect stub)
-- [x] FR-NS-05: Nursing Notes (structured types, tagging, sign-and-lock)
-- [x] FR-NS-06: Care Plans (templates, interventions, progress tracking)
-- [x] FR-NS-07: Shift Handover (endorsement list, dual sign-off)
-- [x] FR-NS-08: Ward Management (bed map, staff allocation, ward inventory)
-- [x] FR-NS-09: Discharge checklist
-- [x] FR-NS-10: Wire discharge checklist completion to billing trigger
+- [ ] Admission/ward/bed entities + migrations
+- [ ] FR-NS-01: Admission intake flow (triage, ward/bed assignment, checklist)
+- [ ] FR-NS-02: My Patients list (filter by Critical/High Risk/Stable)
+- [ ] FR-NS-03: Nursing Tasks (MAR-linked)
+- [ ] FR-NS-04: Vital signs entry (manual + device-connect stub)
+- [ ] FR-NS-05: Nursing Notes (structured types, tagging, sign-and-lock)
+- [ ] FR-NS-06: Care Plans (templates, interventions, progress tracking)
+- [ ] FR-NS-07: Shift Handover (endorsement list, dual sign-off)
+- [ ] FR-NS-08: Ward Management (bed map, staff allocation, ward inventory)
+- [ ] FR-NS-09: Discharge checklist
+- [ ] FR-NS-10: Wire discharge checklist completion to billing trigger
       (per Task 1 decision)
 
 ### 2.3 Accounts & Billing
-- [x] Invoice/payment entities + migrations
-- [x] FR-AC-01: Create new invoice (NHIA-aware line items)
-- [x] FR-AC-02: Manage Invoices list (filters, aged invoice summary)
-- [x] FR-AC-03: Invoice actions (view/edit/status)
-- [x] FR-AC-04: Invoice permissions (role defaults + per-user overrides)
-- [x] FR-AC-05: Delete invoice (password confirm + audit log — soft delete only)
-- [x] FR-AC-06: Pull consolidated charges from Nursing Tasks/Notes at discharge
-- [x] FR-AC-07: Payment methods + receipt history
-- [x] FR-AC-08: Admission deposit enforcement (per Task 1 decision)
+- [ ] Invoice/payment entities + migrations
+- [ ] FR-AC-01: Create new invoice (NHIA-aware line items)
+- [ ] FR-AC-02: Manage Invoices list (filters, aged invoice summary)
+- [ ] FR-AC-03: Invoice actions (view/edit/status)
+- [ ] FR-AC-04: Invoice permissions (role defaults + per-user overrides)
+- [ ] FR-AC-05: Delete invoice (password confirm + audit log — soft delete only)
+- [ ] FR-AC-06: Pull consolidated charges from Nursing Tasks/Notes at discharge
+- [ ] FR-AC-07: Payment methods + receipt history
+- [ ] FR-AC-08: Admission deposit enforcement (per Task 1 decision)
 
 ### 2.4 Pharmacy (minimal)
 - [ ] Drug/dispensing entities + migrations
@@ -331,4 +331,27 @@ decision) rather than resolving it silently.
 - [x] Verify Group 1 mock patient journey and fix frontend failures; see frontend/QA_GROUP1.md.
 - [x] Merge all four fetched feature branches into local main, resolve frontend conflicts, preserve original commit objects and contributor metadata. No push performed.
 - [x] Verify merged frontend: 13 tests, production build, and browser navigation; Python: 32 tests pass.
-- [ ] Run Go and database-backed cross-service tests in the configured integration environment (8 Python cross-service cases skipped locally).
+- [x] Run Go and database-backed cross-service tests in disposable PostgreSQL (2026-10-06); complete Go race suite and real Python-to-Go cases passed. See AUDIT_FIXES.md.
+
+
+## Full project audit follow-ups (2026-10-06)
+
+- [x] Complete full project source audit, branch integration review, builds/tests, dependency scans, and isolated synthetic reproductions. See `PROJECT_AUDIT.md` for scope, evidence, 31 findings, and verification limits.
+- [x] A01–A04: Contain wallet webhooks by disabling them until provider selection; add positive-money constraints, module RBAC, atomic data/audit transactions, and real PostgreSQL failure/denial tests. Owner approved transaction support in the existing writer; original behavior/tests retained.
+- [ ] A05–A07, A17–A18: Integrate reviewed Group 1 backend branches, align successful frontend/API contracts and container routing, and separate demo/local fallback behavior from authoritative clinical and financial actions.
+- [ ] A08–A11, A26: Correct repeated journal posting, silent persistence failures, NHIA payable/rounding calculations, period-aware statements, and ledger validation; verify business logic and reconciliation.
+  - [x] A08–A11: Prevent repeated journal posting; propagate storage write errors; calculate backend payments against NHIA-adjusted payable; calculate demo coverage in kobo; add regressions.
+  - [x] A26: Validate journal account/amount entries, fix cash contra posting direction, and compare balance at kobo precision. Historical/period-aware reporting remains open.
+- [ ] A12–A13: Enforce the recorded clinician-folder deposit gate and 100% discharge trigger. Resolve any proposed override as an explicit decision; retain A&E exemption and do not silently choose new policy.
+  - [x] Enforce positive-deposit/explicit-A&E rule in supported clinical folder paths; replace payment-status stub. Owner disabled automatic consolidation pending approved tariffs; remove Matron override from invoice eligibility.
+- [ ] A14–A15, A21, A31: Add atomic bed allocation, patient/admission/invoice ownership checks, valid financial transitions, missing Group 1 clinical flows, input validation, durable numbering, and per-mutation tests.
+  - [x] Add admission row locking and database uniqueness, financial ownership/overpayment checks, guarded invoice transitions, database document sequences, and tests for all exposed Go module mutations. Clinical completion/sign-lock APIs remain open.
+- [ ] A19, A24–A25: Establish least-privilege service database roles, complete schema attribution/soft-delete constraints, unify per-user RBAC resolution, and provide secure initial user/permission provisioning.
+- [x] A20, A23: Check current active user/role at protected Go module and Python authorization boundaries; reject missing expiry, wrong audience, and invalid identity claims. Add Go and real cross-service revocation regressions. Individual token/session revocation remains a separate admin capability.
+- [ ] A22, A27: Review and patch Go toolchain/dependency advisories and the Tailwind build-chain advisory; lock reviewed Python and container dependency versions. Do not treat scanner call-graph matches as demonstrated exploits.
+  - [x] Patch Go toolchain/pgx/x/text and Tailwind dependency chain; add Python 3.12 dependency lock; pin Go build image. Reachable Go scan and npm audit pass. Full container digest/OS scanning remains open.
+- [ ] A28: Run frontend tests in CI, add required lint/type gates, and make the backend branch gofmt-clean.
+  - [x] Run frontend regressions with npm ci in CI; format imported backend; verify Go vet and strict frontend TypeScript. Python lint/type gates remain open.
+- [ ] Run the 17 skipped Go database cases and eight skipped Python real cross-service cases in an authorized test database; verify a real multi-user Group 1 journey before checking off exit criteria.
+- [ ] A29: Supply production routing/TLS, readiness, deployment/storage configuration, and encrypted backup/restore verification before deployment.
+- [ ] A30: Restore authoritative referenced docs and reconcile stale task/QA claims; complete patient-data validation of client material before committing it. No deletion is authorized by this audit.

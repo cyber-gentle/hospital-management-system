@@ -10,10 +10,12 @@ import {
 import { INITIAL_INVOICES } from './mockData';
 import type { InpatientAdmission, NursingTask, DischargeDossier } from '../nursing/types';
 import type { Prescription } from '../pharmacy/types';
+import { requireDemoMode } from '../../lib/demo';
 
 const STORAGE_KEY = 'hims_billing_invoices_v1';
 
 function getStoredInvoices(): Invoice[] {
+	requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -31,6 +33,7 @@ function setStoredInvoices(invoices: Invoice[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(invoices));
   } catch (e) {
     console.error('Failed to save invoices to storage', e);
+	throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
@@ -84,11 +87,11 @@ export const billingApi = {
       const admission = admissions.find(a => a.id === input.admissionId);
       const dossiers: DischargeDossier[] = JSON.parse(localStorage.getItem('hims_nursing_discharges_v1') || '[]');
       const dossier = dossiers.find(d => d.admissionId === input.admissionId);
-      if (!admission || admission.patientId !== input.patientId || !dossier || !(dossier.items.every(i => i.completed) || (dossier.hasMatronOverride && dossier.matronOverrideReason?.trim() && dossier.matronOverrideBy?.trim()))) {
-        throw new Error('The patient admission must have a complete discharge checklist or documented override.');
+      if (!admission || admission.patientId !== input.patientId || !dossier || !dossier.items.length || !dossier.items.every(i => i.completed)) {
+        throw new Error('The patient admission must have a 100% complete discharge checklist.');
       }
     }
-    if (!input.items.length || input.items.some(i => !Number.isFinite(i.unitPrice) || i.unitPrice < 0 || !Number.isFinite(i.quantity) || i.quantity <= 0)) {
+    if (!input.items.length || input.items.some(i => !Number.isFinite(i.unitPrice) || i.unitPrice < 0 || Math.abs(i.unitPrice * 100 - Math.round(i.unitPrice * 100)) > 0.000001 || !Number.isSafeInteger(i.quantity) || i.quantity <= 0)) {
       throw new Error('Invoice items require a valid price and positive quantity.');
     }
     if (input.depositApplied !== undefined && (!Number.isFinite(input.depositApplied) || input.depositApplied < 0)) throw new Error('Deposit must be a non-negative amount.');
@@ -96,9 +99,12 @@ export const billingApi = {
 
     // Calculate line items with NHIA 10% co-payment rule
     const computedItems: InvoiceLineItem[] = input.items.map((item, idx) => {
-      const gross = item.unitPrice * item.quantity;
-      const nhiaPortion = isNhia ? Math.round(gross * 0.9) : 0;
-      const patientPortion = isNhia ? gross - nhiaPortion : gross;
+      const grossKobo = Math.round(item.unitPrice * 100) * item.quantity;
+      if (!Number.isSafeInteger(grossKobo)) throw new Error('Invoice amount exceeds supported precision.');
+      const nhiaKobo = isNhia ? Math.round(grossKobo * 90 / 100) : 0;
+      const gross = grossKobo / 100;
+      const nhiaPortion = nhiaKobo / 100;
+      const patientPortion = (grossKobo - nhiaKobo) / 100;
 
       return {
         ...item,
@@ -109,12 +115,12 @@ export const billingApi = {
       };
     });
 
-    const totalGross = computedItems.reduce((acc, i) => acc + i.grossAmount, 0);
-    const totalNhia = computedItems.reduce((acc, i) => acc + i.nhiaCoveredAmount, 0);
-    const totalPatient = computedItems.reduce((acc, i) => acc + i.patientPayableAmount, 0);
+    const totalGross = computedItems.reduce((acc, i) => acc + Math.round(i.grossAmount * 100), 0) / 100;
+    const totalNhia = computedItems.reduce((acc, i) => acc + Math.round(i.nhiaCoveredAmount * 100), 0) / 100;
+    const totalPatient = computedItems.reduce((acc, i) => acc + Math.round(i.patientPayableAmount * 100), 0) / 100;
 
     const depositDeduction = input.depositApplied || 0;
-    const netDue = Math.max(0, totalPatient - depositDeduction);
+    const netDue = Math.max(0, Math.round(totalPatient * 100) - Math.round(depositDeduction * 100)) / 100;
 
     const invoiceNumber = `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -173,8 +179,8 @@ export const billingApi = {
       paymentDate: new Date().toISOString()
     };
 
-    const newAmountPaid = invoice.amountPaid + paymentInput.amountPaid;
-    const newBalance = Math.max(0, invoice.netAmountDue - newAmountPaid);
+    const newAmountPaid = (Math.round(invoice.amountPaid * 100) + Math.round(paymentInput.amountPaid * 100)) / 100;
+    const newBalance = Math.max(0, Math.round(invoice.netAmountDue * 100) - Math.round(newAmountPaid * 100)) / 100;
     const newStatus: InvoiceStatus = newBalance === 0 ? 'paid' : 'partially_paid';
 
     const updatedInvoice: Invoice = {

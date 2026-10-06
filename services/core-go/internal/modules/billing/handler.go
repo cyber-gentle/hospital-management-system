@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -12,12 +11,15 @@ import (
 
 	"hospital-hims/services/core-go/internal/auditlog"
 	"hospital-hims/services/core-go/internal/auth"
+	"hospital-hims/services/core-go/internal/common"
 )
 
 type Handler struct {
-	db          *sql.DB
-	auditWriter *auditlog.Writer
-	tokens      *auth.TokenService
+	db                *sql.DB
+	auditWriter       *auditlog.Writer
+	tokens            *auth.TokenService
+	webhookVerifier   PaymentWebhookVerifier
+	tariffsConfigured bool
 }
 
 func NewHandler(db *sql.DB, auditWriter *auditlog.Writer, tokens *auth.TokenService) *Handler {
@@ -31,7 +33,8 @@ func NewHandler(db *sql.DB, auditWriter *auditlog.Writer, tokens *auth.TokenServ
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	billing := router.Group("/billing")
 
-	// Unprotected webhook route
+	// Provider authentication is performed by the handler. Until a provider
+	// is chosen this route is disabled, per the owner's 2026-10-06 decision.
 	billing.POST("/webhooks/payments", h.HandlePaymentWebhook)
 
 	// Protected routes
@@ -45,10 +48,10 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	protected.PUT("/invoices/:id/status", auth.RequirePermission(h.db, "billing", "write"), h.HandleUpdateInvoiceStatus)
 	protected.DELETE("/invoices/:id", auth.RequirePermission(h.db, "billing", "delete"), h.HandleDeleteInvoice)
 
-	protected.POST("/payments", h.HandleCreatePayment)
-	protected.POST("/wallets/fund", h.HandleFundWalletManual)
-	
-	protected.POST("/admission-deposits", h.HandleRecordAdmissionDeposit)
+	protected.POST("/payments", auth.RequirePermission(h.db, "billing", "write"), h.HandleCreatePayment)
+	protected.POST("/wallets/fund", auth.RequirePermission(h.db, "billing", "write"), h.HandleFundWalletManual)
+
+	protected.POST("/admission-deposits", auth.RequirePermission(h.db, "billing", "write"), h.HandleRecordAdmissionDeposit)
 }
 
 func (h *Handler) HandleCreateInvoice(c *gin.Context) {
@@ -61,16 +64,43 @@ func (h *Handler) HandleCreateInvoice(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
+	if err := validateInvoice(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	tx, err := h.db.BeginTx(c.Request.Context(), nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
+	if !common.ActivePatient(c, tx, req.PatientID) {
+		return
+	}
+	if req.AdmissionID != nil {
+		var owner string
+		err := tx.QueryRowContext(c.Request.Context(), `SELECT patient_id::text FROM admissions WHERE id=$1 AND deleted_at IS NULL FOR SHARE`, *req.AdmissionID).Scan(&owner)
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Admission not found"})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to verify admission"})
+			return
+		}
+		if owner != req.PatientID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Admission does not belong to this patient"})
+			return
+		}
+	}
 
 	// Generate Invoice Number
-	invNo := fmt.Sprintf("INV-%d-%06d", time.Now().Year(), time.Now().UnixNano()%1000000)
+	invNo, err := common.NextNumber(c.Request.Context(), tx, "INV")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate invoice number"})
+		return
+	}
 
 	var subtotal, totalNHIA decimal.Decimal
 	for _, li := range req.LineItems {
@@ -115,7 +145,7 @@ func (h *Handler) HandleCreateInvoice(c *gin.Context) {
 		invNo, req.PatientID, req.AdmissionID, subtotal, req.Tax, req.Discount,
 		totalNHIA, totalAmount, balanceDue, userID, req.DueDate,
 	).Scan(&inv.ID, &inv.CreatedAt, &inv.UpdatedAt)
-	
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create invoice"})
 		return
@@ -150,7 +180,7 @@ func (h *Handler) HandleCreateInvoice(c *gin.Context) {
 			inv.ID, li.Description, li.Department, li.Quantity, li.UnitPrice,
 			totalPrice, li.NHIACoveredAmount, patientPayable,
 		).Scan(&savedLi.ID, &savedLi.CreatedAt, &savedLi.UpdatedAt)
-		
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert line item"})
 			return
@@ -158,12 +188,7 @@ func (h *Handler) HandleCreateInvoice(c *gin.Context) {
 		inv.LineItems = append(inv.LineItems, savedLi)
 	}
 
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -177,7 +202,15 @@ func (h *Handler) HandleCreateInvoice(c *gin.Context) {
 			"invoice_number": invNo,
 			"total_amount":   totalAmount.String(),
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusCreated, inv)
 }
@@ -193,14 +226,50 @@ func (h *Handler) HandleCreatePayment(c *gin.Context) {
 		return
 	}
 
+	if err := validateAmount(req.AmountPaid, true); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	tx, err := h.db.BeginTx(c.Request.Context(), nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
+	if !common.ActivePatient(c, tx, req.PatientID) {
+		return
+	}
 
-	receiptNo := fmt.Sprintf("RCP-%d-%06d", time.Now().Year(), time.Now().UnixNano()%1000000)
+	receiptNo, err := common.NextNumber(c.Request.Context(), tx, "RCP")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate receipt number"})
+		return
+	}
+	var currentPaid, patientPayable decimal.Decimal
+	if req.InvoiceID != nil {
+		var invoicePatient, invoiceStatus string
+		var totalAmount, coverage decimal.Decimal
+		err = tx.QueryRowContext(c.Request.Context(), `SELECT patient_id::text, status, paid_amount, total_amount, nhia_coverage FROM invoices WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, *req.InvoiceID).Scan(&invoicePatient, &invoiceStatus, &currentPaid, &totalAmount, &coverage)
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Active invoice not found"})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch invoice"})
+			return
+		}
+		if invoicePatient != req.PatientID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invoice does not belong to this patient"})
+			return
+		}
+		patientPayable = totalAmount.Sub(coverage)
+		outstanding := patientPayable.Sub(currentPaid)
+		if (invoiceStatus != "UNPAID" && invoiceStatus != "PARTIAL") || req.AmountPaid.GreaterThan(outstanding) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Payment exceeds the outstanding amount or invoice is not open"})
+			return
+		}
+	}
 
 	if req.PaymentMethod == "WALLET" {
 		var walletID string
@@ -262,15 +331,8 @@ func (h *Handler) HandleCreatePayment(c *gin.Context) {
 
 	// Update invoice if linked
 	if req.InvoiceID != nil {
-		var currentPaid, totalAmount decimal.Decimal
-		err = tx.QueryRowContext(c.Request.Context(), `SELECT paid_amount, total_amount FROM invoices WHERE id = $1 FOR UPDATE`, *req.InvoiceID).Scan(&currentPaid, &totalAmount)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch invoice"})
-			return
-		}
-
 		newPaid := currentPaid.Add(req.AmountPaid)
-		newBalance := totalAmount.Sub(newPaid)
+		newBalance := patientPayable.Sub(newPaid)
 		status := "PARTIAL"
 		if newBalance.LessThanOrEqual(decimal.Zero) {
 			status = "PAID"
@@ -284,12 +346,7 @@ func (h *Handler) HandleCreatePayment(c *gin.Context) {
 		}
 	}
 
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -304,7 +361,15 @@ func (h *Handler) HandleCreatePayment(c *gin.Context) {
 			"amount_paid":    req.AmountPaid.String(),
 			"invoice_id":     req.InvoiceID,
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusCreated, p)
 }
@@ -325,12 +390,20 @@ func (h *Handler) HandleFundWalletManual(c *gin.Context) {
 		return
 	}
 
+	if err := validateAmount(req.Amount, true); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	tx, err := h.db.BeginTx(c.Request.Context(), nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
+	if !common.ActivePatient(c, tx, req.PatientID) {
+		return
+	}
 
 	var walletID string
 	var currentBalance decimal.Decimal
@@ -359,12 +432,7 @@ func (h *Handler) HandleFundWalletManual(c *gin.Context) {
 		return
 	}
 
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -378,20 +446,36 @@ func (h *Handler) HandleFundWalletManual(c *gin.Context) {
 			"amount": req.Amount.String(),
 			"method": req.PaymentMethod,
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Wallet funded successfully", "new_balance": newBalance, "transaction_id": wt.ID})
 }
 
 func (h *Handler) HandlePaymentWebhook(c *gin.Context) {
-	var payload WebhookPayload
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+	if h.webhookVerifier == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Wallet webhooks are disabled until a payment provider is configured"})
+		return
+	}
+	payload, err := h.webhookVerifier.Verify(c.Request.Context(), c.Request)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid payment provider event"})
 		return
 	}
 
 	if payload.Event != "charge.success" && payload.Event != "transfer.success" {
 		c.JSON(http.StatusOK, gin.H{"message": "Event ignored"})
+		return
+	}
+	if err := validateAmount(payload.Data.Amount, true); err != nil || payload.Data.Reference == "" || len(payload.Data.Reference) > 100 || payload.Data.VirtualAccountNumber == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid verified payment amount or reference"})
 		return
 	}
 
@@ -400,7 +484,7 @@ func (h *Handler) HandlePaymentWebhook(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	var walletID string
 	var currentBalance decimal.Decimal
@@ -414,6 +498,27 @@ func (h *Handler) HandlePaymentWebhook(c *gin.Context) {
 		return
 	}
 
+	var previousWallet, previousTransaction string
+	var previousAmount decimal.Decimal
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT wallet_id::text, amount, transaction_id::text FROM wallet_webhook_events WHERE reference = $1`, payload.Data.Reference).Scan(&previousWallet, &previousAmount, &previousTransaction)
+	if err == nil {
+		if previousWallet != walletID || !previousAmount.Equal(payload.Data.Amount) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Payment reference was already used for a different event"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Payment event already processed", "transaction_id": previousTransaction})
+		return
+	}
+	if err != sql.ErrNoRows {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check payment event"})
+		return
+	}
+	var eventReference string
+	err = tx.QueryRowContext(c.Request.Context(), `INSERT INTO wallet_webhook_events (reference, wallet_id, amount) VALUES ($1, $2, $3) ON CONFLICT (reference) DO NOTHING RETURNING reference`, payload.Data.Reference, walletID, payload.Data.Amount).Scan(&eventReference)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Payment event cannot be processed again"})
+		return
+	}
 	newBalance := currentBalance.Add(payload.Data.Amount)
 	_, err = tx.ExecContext(c.Request.Context(), `UPDATE wallets SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, newBalance, walletID)
 	if err != nil {
@@ -428,15 +533,13 @@ func (h *Handler) HandlePaymentWebhook(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log wallet transaction"})
 		return
 	}
-
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+	if _, err := tx.ExecContext(c.Request.Context(), `UPDATE wallet_webhook_events SET transaction_id = $1 WHERE reference = $2`, wt.ID, payload.Data.Reference); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record processed payment event"})
 		return
 	}
 
-	sysUser := "SYSTEM"
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
-		UserID:       &sysUser,
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
+		UserID:       nil,
 		UserName:     "SYSTEM_WEBHOOK",
 		UserRole:     "SYSTEM",
 		Service:      "core-go",
@@ -446,10 +549,18 @@ func (h *Handler) HandlePaymentWebhook(c *gin.Context) {
 		ResourceID:   walletID,
 		Status:       "SUCCESS",
 		Details: map[string]interface{}{
-			"amount": payload.Data.Amount.String(),
+			"amount":    payload.Data.Amount.String(),
 			"reference": payload.Data.Reference,
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Webhook processed successfully", "new_balance": newBalance, "transaction_id": wt.ID})
 }
@@ -495,6 +606,10 @@ func (h *Handler) HandleListInvoices(c *gin.Context) {
 		}
 		invoices = append(invoices, inv)
 	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to complete invoice query"})
+		return
+	}
 	c.JSON(http.StatusOK, invoices)
 }
 
@@ -525,17 +640,28 @@ func (h *Handler) HandleGetInvoice(c *gin.Context) {
 		SELECT id, invoice_id, description, department, quantity, unit_price, total_price, nhia_covered_amount, patient_payable_amount, created_at, updated_at
 		FROM invoice_line_items WHERE invoice_id = $1 AND deleted_at IS NULL
 	`, inv.ID)
-	
-	if err == nil {
+
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to retrieve invoice items"})
+		return
+	}
+	{
 		defer rows.Close()
 		for rows.Next() {
 			var li InvoiceLineItem
-			rows.Scan(
+			if err := rows.Scan(
 				&li.ID, &li.InvoiceID, &li.Description, &li.Department, &li.Quantity,
 				&li.UnitPrice, &li.TotalPrice, &li.NHIACoveredAmount, &li.PatientPayableAmount,
 				&li.CreatedAt, &li.UpdatedAt,
-			)
+			); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read invoice items"})
+				return
+			}
 			inv.LineItems = append(inv.LineItems, li)
+		}
+		if err := rows.Err(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to complete invoice item query"})
+			return
 		}
 	}
 
@@ -554,13 +680,37 @@ func (h *Handler) HandleUpdateInvoiceStatus(c *gin.Context) {
 		return
 	}
 
-	_, err := h.db.ExecContext(c.Request.Context(), `UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND deleted_at IS NULL`, req.Status, id)
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+
+	var currentStatus string
+	var paid, balance decimal.Decimal
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT status,paid_amount,balance_due FROM invoices WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, id).Scan(&currentStatus, &paid, &balance)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invoice not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve invoice"})
+		return
+	}
+	if req.Status != currentStatus {
+		if req.Status != "CANCELLED" || (currentStatus != "UNPAID" && currentStatus != "DRAFT") || !paid.IsZero() {
+			c.JSON(http.StatusConflict, gin.H{"error": "Payment status is calculated from receipts; only unpaid invoices can be cancelled"})
+			return
+		}
+	}
+	_, err = tx.ExecContext(c.Request.Context(), `UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND deleted_at IS NULL`, req.Status, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
 		return
 	}
 
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -573,7 +723,15 @@ func (h *Handler) HandleUpdateInvoiceStatus(c *gin.Context) {
 		Details: map[string]interface{}{
 			"new_status": req.Status,
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Invoice status updated"})
 }
@@ -592,7 +750,7 @@ func (h *Handler) HandleDeleteInvoice(c *gin.Context) {
 
 	// Verify password
 	var hashedPassword string
-	err := h.db.QueryRowContext(c.Request.Context(), `SELECT password_hash FROM users WHERE id = $1 AND deleted_at IS NULL`, userID).Scan(&hashedPassword)
+	err := h.db.QueryRowContext(c.Request.Context(), `SELECT password_hash FROM users WHERE id = $1 AND deleted_at IS NULL AND is_active = true`, userID).Scan(&hashedPassword)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Failed to verify user credentials"})
 		return
@@ -608,14 +766,18 @@ func (h *Handler) HandleDeleteInvoice(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	res, err := tx.ExecContext(c.Request.Context(), `UPDATE invoices SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete invoice"})
 		return
 	}
-	rowsAffected, _ := res.RowsAffected()
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify invoice deletion"})
+		return
+	}
 	if rowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Invoice not found or already deleted"})
 		return
@@ -627,12 +789,7 @@ func (h *Handler) HandleDeleteInvoice(c *gin.Context) {
 		return
 	}
 
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -645,7 +802,15 @@ func (h *Handler) HandleDeleteInvoice(c *gin.Context) {
 		Details: map[string]interface{}{
 			"reason": req.Reason,
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Invoice deleted successfully"})
 }
@@ -661,12 +826,31 @@ func (h *Handler) HandleRecordAdmissionDeposit(c *gin.Context) {
 		return
 	}
 
+	if err := validateAmount(req.AmountPaid, true); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	tx, err := h.db.BeginTx(c.Request.Context(), nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
+	var admissionPatient string
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT patient_id::text FROM admissions WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, req.AdmissionID).Scan(&admissionPatient)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Admission not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify admission"})
+		return
+	}
+	if admissionPatient != req.PatientID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Admission does not belong to this patient"})
+		return
+	}
 
 	if req.PaymentMethod == "WALLET" {
 		var walletID string
@@ -734,23 +918,22 @@ func (h *Handler) HandleRecordAdmissionDeposit(c *gin.Context) {
 	}
 
 	// Insert payment record
-	receiptNo := fmt.Sprintf("DEP-%d-%06d", time.Now().Year(), time.Now().UnixNano()%1000000)
+	receiptNo, err := common.NextNumber(c.Request.Context(), tx, "DEP")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate receipt number"})
+		return
+	}
 	_, err = tx.ExecContext(c.Request.Context(), `
 		INSERT INTO payments (receipt_number, patient_id, amount_paid, payment_method, payment_reference, processed_by, status)
 		VALUES ($1, $2, $3, $4, $5, $6, 'COMPLETED')
 	`, receiptNo, req.PatientID, req.AmountPaid, req.PaymentMethod, req.Reference, userID)
-	
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log payment"})
 		return
 	}
 
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -761,15 +944,27 @@ func (h *Handler) HandleRecordAdmissionDeposit(c *gin.Context) {
 		ResourceID:   depositID,
 		Status:       "SUCCESS",
 		Details: map[string]interface{}{
-			"amount_paid": req.AmountPaid.String(),
+			"amount_paid":  req.AmountPaid.String(),
 			"admission_id": req.AdmissionID,
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Admission deposit recorded successfully", "deposit_id": depositID})
 }
 
 func (h *Handler) HandleConsolidateCharges(c *gin.Context) {
+	if !h.tariffsConfigured {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Automatic consolidation is disabled until approved tariffs and billable task mappings are configured"})
+		return
+	}
 	userID := c.GetString(auth.ContextUserID)
 	userName := c.GetString(auth.ContextUsername)
 	userRole := c.GetString(auth.ContextUserRole)
@@ -785,7 +980,7 @@ func (h *Handler) HandleConsolidateCharges(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start tx"})
 		return
 	}
-	defer tx.Rollback()
+	defer common.Rollback(tx)
 
 	var patientID string
 	err = tx.QueryRowContext(c.Request.Context(), `SELECT patient_id FROM admissions WHERE id = $1 AND deleted_at IS NULL`, req.AdmissionID).Scan(&patientID)
@@ -815,15 +1010,15 @@ func (h *Handler) HandleConsolidateCharges(c *gin.Context) {
 			return
 		}
 
-		cost := decimal.NewFromInt(50) 
-		
+		cost := decimal.NewFromInt(50)
+
 		subtotal = subtotal.Add(cost)
 		lineItems = append(lineItems, InvoiceLineItem{
-			Description: fmt.Sprintf("[%s] %s", taskType, desc),
-			Department:  "NURSING",
-			Quantity:    1,
-			UnitPrice:   cost,
-			TotalPrice:  cost,
+			Description:          fmt.Sprintf("[%s] %s", taskType, desc),
+			Department:           "NURSING",
+			Quantity:             1,
+			UnitPrice:            cost,
+			TotalPrice:           cost,
 			PatientPayableAmount: cost,
 		})
 	}
@@ -833,7 +1028,11 @@ func (h *Handler) HandleConsolidateCharges(c *gin.Context) {
 		return
 	}
 
-	invNo := fmt.Sprintf("INV-%d-%06d", time.Now().Year(), time.Now().UnixNano()%1000000)
+	invNo, err := common.NextNumber(c.Request.Context(), tx, "INV")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate invoice number"})
+		return
+	}
 	totalAmount := subtotal
 
 	var invID string
@@ -858,12 +1057,7 @@ func (h *Handler) HandleConsolidateCharges(c *gin.Context) {
 		}
 	}
 
-	if err = tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit tx"})
-		return
-	}
-
-	h.auditWriter.Record(c.Request.Context(), auditlog.Entry{
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
 		UserID:       &userID,
 		UserName:     userName,
 		UserRole:     userRole,
@@ -877,7 +1071,15 @@ func (h *Handler) HandleConsolidateCharges(c *gin.Context) {
 			"admission_id": req.AdmissionID,
 			"total_amount": totalAmount.String(),
 		},
-	})
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable; the action was not completed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Charges consolidated successfully", "invoice_id": invID})
 }

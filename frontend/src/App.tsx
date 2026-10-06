@@ -16,6 +16,8 @@ import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
 import BillingDesignPreview from "./BillingDesignPreview";
+import { DEMO_MODE } from './lib/demo';
+import { Login } from './lib/Login';
 
 interface ModuleCard {
   id: string;
@@ -60,7 +62,7 @@ const ROLES: UserRole[] = [
 ];
 
 const Dashboard: React.FC = () => {
-  const { user, login } = useAuth();
+  const { user, login, logout, isAuthenticated } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
   const [activeModule, setActiveModule] = useState<string | null>("medicalrecords");
 
@@ -69,6 +71,7 @@ const Dashboard: React.FC = () => {
     : MODULES.filter((m) => m.category === selectedFilter || (selectedFilter === "Python" && m.service.includes("Python")) || (selectedFilter === "Go" && m.service.includes("Go")));
 
   const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+	if (!DEMO_MODE) return;
     const role = e.target.value as UserRole;
     login("mock-jwt-token", {
       id: "usr_01",
@@ -79,6 +82,7 @@ const Dashboard: React.FC = () => {
     });
   };
 
+  if (!DEMO_MODE && !isAuthenticated) return <Login />;
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       {/* Top Header */}
@@ -205,6 +209,8 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-4">
+            {DEMO_MODE ? <>
+            <span className="text-xs font-semibold text-amber-800">Demo — synthetic data only</span>
             <div className="flex items-center space-x-2 text-xs text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
               <Shield className="w-3.5 h-3.5 text-blue-600" />
               <label htmlFor="role-select" className="font-medium text-slate-700">Role Preview:</label>
@@ -221,6 +227,7 @@ const Dashboard: React.FC = () => {
                 ))}
               </select>
             </div>
+            </> : <><span className="text-sm">{user?.name}</span><button type="button" onClick={logout} className="text-sm text-blue-700">Sign out</button></>}
           </div>
         </div>
       </header>

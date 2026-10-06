@@ -68,7 +68,13 @@ class TokenVerifier:
                 algorithms=[SIGNING_ALGORITHM],
                 issuer=EXPECTED_ISSUER,
                 audience=EXPECTED_AUDIENCE,
+                options={"require": ["exp", "iss", "aud"]},
             )
+            identity = payload.get("user_id") or payload.get("sub", "")
+            if not identity or not payload.get("role"):
+                raise jwt.InvalidTokenError("Token identity and role are required")
+            if payload.get("user_id") and payload.get("sub") and payload["user_id"] != payload["sub"]:
+                raise jwt.InvalidTokenError("Token identity and subject disagree")
         except jwt.ExpiredSignatureError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

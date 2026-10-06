@@ -1,3 +1,4 @@
+import { requireDemoMode } from '../../lib/demo';
 import {
   Drug,
   Prescription,
@@ -13,6 +14,7 @@ const DRUGS_STORAGE_KEY = 'hims_pharmacy_drugs_v1';
 const RX_STORAGE_KEY = 'hims_pharmacy_prescriptions_v1';
 
 function getStoredDrugs(): Drug[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(DRUGS_STORAGE_KEY);
     if (!raw) {
@@ -30,10 +32,12 @@ function setStoredDrugs(drugs: Drug[]): void {
     localStorage.setItem(DRUGS_STORAGE_KEY, JSON.stringify(drugs));
   } catch (e) {
     console.error('Failed to save drugs to storage', e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
 function getStoredPrescriptions(): Prescription[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(RX_STORAGE_KEY);
     if (!raw) {
@@ -51,6 +55,7 @@ function setStoredPrescriptions(prescriptions: Prescription[]): void {
     localStorage.setItem(RX_STORAGE_KEY, JSON.stringify(prescriptions));
   } catch (e) {
     console.error('Failed to save prescriptions to storage', e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 

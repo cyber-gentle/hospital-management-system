@@ -79,6 +79,7 @@ async def create_laboratory_order(
             role=user.role,
             module="laboratory",
             action="create_order",
+            user_id=user.user_id,
         )
     except CoreServiceError as err:
         raise HTTPException(
@@ -99,14 +100,14 @@ async def create_laboratory_order(
         user_name=user.username,
         user_role=user.role,
         module="laboratory",
-        action="CREATE_LAB_ORDER",
+        action="LAB_ORDER_UNAVAILABLE",
         resource_type="LabOrder",
         resource_id=order.order_id,
         details={
             "patient_id": order.patient_id,
             "test_code": order.test_code,
         },
-        status="SUCCESS",
+        status="FAILURE",
     )
     try:
         await core_client.record_audit_log(audit_entry)
@@ -116,14 +117,15 @@ async def create_laboratory_order(
             detail="Audit logging unavailable; the action was not completed",
         ) from err
 
-    return {
-        "status": "created",
-        "order_id": order.order_id,
-        "recorded_by": user.username,
-    }
+    # This scaffold has no laboratory persistence yet. Record the unsuccessful
+    # attempt through Go and refuse it instead of reporting a fictitious order.
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Laboratory order persistence is not implemented; no order was created",
+    )
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=settings.port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=settings.port, reload=False)
