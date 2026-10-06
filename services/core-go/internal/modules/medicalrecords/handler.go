@@ -285,15 +285,17 @@ func (h *Handler) HandleGenerateIDCard(c *gin.Context) {
 	}
 
 	cardData := PatientIDCardData{
-		PatientID:             id,
-		HospitalNumber:        hospNo,
-		FullName:              fullName,
-		DateOfBirth:           dob.Format("2006-01-02"),
-		Gender:                gender,
-		BloodGroup:            bgroup,
-		Genotype:              genotype,
-		EmergencyContactPhone: emergPhone,
-		IssuedAt:              time.Now().UTC().Format(time.RFC3339),
+		PatientID:      id,
+		HospitalNumber: hospNo,
+		FullName:       fullName,
+		DateOfBirth:    dob.Format("2006-01-02"),
+		Gender:         gender,
+		BloodGroup:     bgroup,
+		Genotype:       genotype,
+		EmergencyPhone: emergPhone,
+		Barcode:        hospNo,
+		QRCode:         hospNo,
+		IssuedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Write mandatory audit log
@@ -323,10 +325,12 @@ func (h *Handler) HandleGenerateIDCard(c *gin.Context) {
 func (h *Handler) HandleGetPaymentStatus(c *gin.Context) {
 	id := c.Param("id")
 
-	// 1. Get the patient's payment category
-	query := `SELECT hospital_number, payment_category FROM patients WHERE id = $1 AND deleted_at IS NULL`
-	var hospNo, category string
-	if err := h.db.QueryRowContext(c.Request.Context(), query, id).Scan(&hospNo, &category); err != nil {
+	query := `SELECT hospital_number, first_name, last_name, payment_category, nhia_number, nhia_scheme, registration_fee_paid, registration_fee_receipt_no FROM patients WHERE id = $1 AND deleted_at IS NULL`
+	var hospNo, fName, lName, category string
+	var nhiaNo, nhiaScheme, receiptNo *string
+	var regPaid bool
+
+	if err := h.db.QueryRowContext(c.Request.Context(), query, id).Scan(&hospNo, &fName, &lName, &category, &nhiaNo, &nhiaScheme, &regPaid, &receiptNo); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Patient not found"})
 		} else {
@@ -343,19 +347,32 @@ func (h *Handler) HandleGetPaymentStatus(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to verify payment status"})
 		return
 	}
-	status := "CLEARED"
 
-	// Stub logic based on business rules:
+	statusReason := "Cleared for service"
+	eligible := true
+
 	if hasPendingDeposits || hasUnsettledInvoices {
-		status = "BLOCKED"
+		eligible = false
+		if hasPendingDeposits {
+			statusReason = "Pending admission deposit"
+		} else {
+			statusReason = "Unsettled invoices"
+		}
+	} else if !regPaid {
+		eligible = false
+		statusReason = "Registration fee not paid"
 	}
 
 	c.JSON(http.StatusOK, PaymentStatusData{
-		PatientID:            id,
-		HospitalNumber:       hospNo,
-		PaymentCategory:      category,
-		HasPendingDeposits:   hasPendingDeposits,
-		HasUnsettledInvoices: hasUnsettledInvoices,
-		Status:               status,
+		PatientID:           id,
+		HospitalNumber:      hospNo,
+		FullName:            fName + " " + lName,
+		PaymentCategory:     category,
+		NHIANumber:          nhiaNo,
+		NHIAScheme:          nhiaScheme,
+		RegistrationFeePaid: regPaid,
+		ReceiptNo:           receiptNo,
+		EligibleForService:  eligible,
+		StatusReason:        statusReason,
 	})
 }

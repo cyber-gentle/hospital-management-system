@@ -79,7 +79,7 @@ func TestEveryModuleMutationRequiresPermission(t *testing.T) {
 	billing.NewHandler(db, writer, tokens).RegisterRoutes(api)
 	for _, tc := range []struct{ method, path string }{
 		{"POST", "/medical-records/patients"}, {"POST", "/medical-records/patients/" + f.patient + "/id-card"},
-		{"POST", "/nursing/admissions"}, {"POST", "/nursing/vitals"}, {"POST", "/nursing/notes"}, {"POST", "/nursing/tasks"}, {"POST", "/nursing/care-plans"}, {"POST", "/nursing/shift-handovers"}, {"PUT", "/nursing/admissions/" + f.admission + "/discharge-checklist"},
+		{"POST", "/nursing/admissions"}, {"POST", "/nursing/vitals"}, {"POST", "/nursing/notes"}, {"POST", "/nursing/notes/" + f.patient + "/sign"}, {"POST", "/nursing/tasks"}, {"POST", "/nursing/care-plans"}, {"POST", "/nursing/shift-handovers"}, {"POST", "/nursing/shift-handovers/" + f.patient + "/sign"}, {"PUT", "/nursing/admissions/" + f.admission + "/discharge-checklist"}, {"POST", "/nursing/admissions/" + f.admission + "/discharge-checklist/complete"},
 		{"POST", "/billing/invoices"}, {"POST", "/billing/invoices/consolidate"}, {"POST", "/billing/payments"}, {"POST", "/billing/wallets/fund"}, {"POST", "/billing/admission-deposits"}, {"PUT", "/billing/invoices/" + f.patient + "/status"}, {"DELETE", "/billing/invoices/" + f.patient},
 	} {
 		req := httptest.NewRequest(tc.method, "/api/v1"+tc.path, strings.NewReader("{}"))

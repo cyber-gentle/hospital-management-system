@@ -57,23 +57,29 @@ type CreatePatientRequest struct {
 
 // PatientIDCardData is the response payload for generating an ID card.
 type PatientIDCardData struct {
-	PatientID             string  `json:"patient_id"`
-	HospitalNumber        string  `json:"hospital_number"`
-	FullName              string  `json:"full_name"`
-	DateOfBirth           string  `json:"date_of_birth"`
-	Gender                string  `json:"gender"`
-	BloodGroup            *string `json:"blood_group,omitempty"`
-	Genotype              *string `json:"genotype,omitempty"`
-	EmergencyContactPhone string  `json:"emergency_contact_phone"`
-	IssuedAt              string  `json:"issued_at"`
+	PatientID      string  `json:"patient_id"`
+	HospitalNumber string  `json:"hospital_number"`
+	FullName       string  `json:"full_name"`
+	DateOfBirth    string  `json:"date_of_birth"`
+	Gender         string  `json:"gender"`
+	BloodGroup     *string `json:"blood_group,omitempty"`
+	Genotype       *string `json:"genotype,omitempty"`
+	EmergencyPhone string  `json:"emergency_phone"` // Changed to match UI
+	Barcode        string  `json:"barcode"`         // Added for UI
+	QRCode         string  `json:"qrcode"`          // Added for UI
+	IssuedAt       string  `json:"issued_at"`
 }
 
 // PaymentStatusData is the response payload for checking a patient's billing blocks.
 type PaymentStatusData struct {
-	PatientID            string `json:"patient_id"`
-	HospitalNumber       string `json:"hospital_number"`
-	PaymentCategory      string `json:"payment_category"`
-	HasPendingDeposits   bool   `json:"has_pending_deposits"`
-	HasUnsettledInvoices bool   `json:"has_unsettled_invoices"`
-	Status               string `json:"status"` // CLEARED or BLOCKED
+	PatientID           string  `json:"patient_id"`
+	HospitalNumber      string  `json:"hospital_number"`
+	FullName            string  `json:"full_name"` // Added for UI
+	PaymentCategory     string  `json:"payment_category"`
+	NHIANumber          *string `json:"nhia_number,omitempty"` // Added for UI
+	NHIAScheme          *string `json:"nhia_scheme,omitempty"` // Added for UI
+	RegistrationFeePaid bool    `json:"registration_fee_paid"` // Added for UI
+	ReceiptNo           *string `json:"receipt_no,omitempty"`  // Added for UI
+	EligibleForService  bool    `json:"eligible_for_service"`  // Added for UI
+	StatusReason        string  `json:"status_reason"`         // Added for UI
 }

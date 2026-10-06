@@ -122,6 +122,63 @@ function setStoredRecon(items: ReconciliationItem[]): void {
   }
 }
 
+function getPeriodDates(period: string) {
+  const start = new Date(period);
+  start.setDate(1);
+  start.setHours(0,0,0,0);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+  end.setDate(0);
+  end.setHours(23,59,59,999);
+  return { start, end };
+}
+
+function calculateAccountBalances(period: string, onlyInPeriod: boolean) {
+  const { start, end } = getPeriodDates(period);
+  const accounts = getStoredAccounts().map(a => ({...a, balance: 0})); 
+  const jvs = getStoredJVs().filter(jv => jv.status === 'POSTED');
+  const cbts = getStoredCBT().filter(cbt => cbt.status !== 'PENDING');
+  
+  for (const jv of jvs) {
+    const d = new Date(jv.date);
+    if (d > end) continue;
+    if (onlyInPeriod && d < start) continue;
+    
+    for (const item of jv.items) {
+      const acc = accounts.find(a => a.id === item.accountId || a.code === item.accountCode);
+      if (acc) {
+        if (acc.type === "ASSET" || acc.type === "EXPENSE") {
+          acc.balance += (item.debit - item.credit);
+        } else {
+          acc.balance += (item.credit - item.debit);
+        }
+      }
+    }
+  }
+  
+  for (const cbt of cbts) {
+    const d = new Date(cbt.date);
+    if (d > end) continue;
+    if (onlyInPeriod && d < start) continue;
+    
+    const bankAcc = accounts.find(a => a.id === cbt.bankAccountId);
+    const contraAcc = accounts.find(a => a.id === cbt.contraAccountId);
+    
+    if (bankAcc && contraAcc) {
+      if (cbt.type === "RECEIPT") {
+        bankAcc.balance += cbt.amount;
+        contraAcc.balance += (contraAcc.type === 'ASSET' || contraAcc.type === 'EXPENSE') ? -cbt.amount : cbt.amount;
+      } else {
+        bankAcc.balance -= cbt.amount;
+        contraAcc.balance += (contraAcc.type === 'ASSET' || contraAcc.type === 'EXPENSE') ? cbt.amount : -cbt.amount;
+      }
+    }
+  }
+  
+  return accounts;
+}
+
+
 export const accountingApi = {
   // FR-GL-03: Chart of Accounts
   getAccounts: async (): Promise<Account[]> => {
@@ -374,6 +431,7 @@ export const accountingApi = {
   },
 
   // FR-GL-04: Financial Statement Generation
+
   getTrialBalance: async (period = "September 2026"): Promise<TrialBalanceReport> => {
     try {
       const res = await fallbackFetch(`/api/v1/accounting/statements/trial-balance?period=${period}`);
@@ -385,7 +443,7 @@ export const accountingApi = {
       // fallback
     }
 
-    const accounts = getStoredAccounts();
+    const accounts = calculateAccountBalances(period, false);
     let totalDebit = 0;
     let totalCredit = 0;
 
@@ -430,7 +488,7 @@ export const accountingApi = {
       // fallback
     }
 
-    const accounts = getStoredAccounts();
+    const accounts = calculateAccountBalances(period, true);
     const revenues = accounts
       .filter((a) => a.type === "REVENUE")
       .map((a) => ({ accountCode: a.code, name: a.name, amount: a.balance }));
@@ -462,7 +520,7 @@ export const accountingApi = {
       // fallback
     }
 
-    const accounts = getStoredAccounts();
+    const accounts = calculateAccountBalances(period, false);
     const assets = accounts
       .filter((a) => a.type === "ASSET")
       .map((a) => ({ accountCode: a.code, name: a.name, amount: a.balance }));
@@ -503,8 +561,11 @@ export const accountingApi = {
       // fallback
     }
 
+    const { start, end } = getPeriodDates(period);
     const items = getStoredRecon();
     for (const invoice of await billingApi.getInvoices({ includeDeleted: true })) {
+      const d = new Date(invoice.createdAt);
+      if (d < start || d > end) continue;
       for (const receipt of invoice.payments) {
         if (items.some(i => i.billingReceiptId === receipt.id)) continue;
         items.push({ id: `recon-${receipt.id}`, billingReceiptId: receipt.id, receiptNumber: receipt.receiptNumber,

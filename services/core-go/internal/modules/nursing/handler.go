@@ -38,6 +38,9 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	nursing.POST("/care-plans", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateCarePlan)
 	nursing.POST("/shift-handovers", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCreateShiftHandover)
 	nursing.PUT("/admissions/:id/discharge-checklist", auth.RequirePermission(h.db, "nursing", "write"), h.HandleUpdateDischargeChecklist)
+	nursing.POST("/notes/:id/sign", auth.RequirePermission(h.db, "nursing", "write"), h.HandleSignNursingNote)
+	nursing.POST("/shift-handovers/:id/sign", auth.RequirePermission(h.db, "nursing", "write"), h.HandleSignShiftHandover)
+	nursing.POST("/admissions/:id/discharge-checklist/complete", auth.RequirePermission(h.db, "nursing", "write"), h.HandleCompleteDischargeChecklist)
 }
 
 func (h *Handler) HandleCreateAdmission(c *gin.Context) {
@@ -334,13 +337,13 @@ func (h *Handler) HandleGetMyPatients(c *gin.Context) {
 	// Get all currently admitted patients with their ward and bed details
 	query := `
 		SELECT
-			p.id, a.id, p.hospital_number, p.first_name, p.last_name,
-			w.name, b.bed_number, a.admitted_at
+			p.id, a.id, p.hospital_number, p.first_name, p.last_name, p.date_of_birth, p.gender, p.blood_group, p.payment_category, p.nhia_number,
+			w.id, w.name, b.id, b.bed_number, a.admitted_at, a.status
 		FROM admissions a
 		JOIN patients p ON a.patient_id = p.id
 		JOIN wards w ON a.ward_id = w.id
 		JOIN beds b ON a.bed_id = b.id
-		WHERE a.status = 'ADMITTED' AND a.deleted_at IS NULL
+		WHERE a.status != 'DISCHARGED' AND a.deleted_at IS NULL
 	`
 
 	rows, err := h.db.QueryContext(c.Request.Context(), query)
@@ -353,18 +356,38 @@ func (h *Handler) HandleGetMyPatients(c *gin.Context) {
 	var patients []MyPatientResponse
 	for rows.Next() {
 		var mp MyPatientResponse
+		var fName, lName, dobStr string
+		var bGroup, nhiaNo *string
 		if err := rows.Scan(
 			&mp.PatientID, &mp.AdmissionID, &mp.HospitalNumber,
-			&mp.FirstName, &mp.LastName, &mp.WardName, &mp.BedNumber, &mp.AdmittedAt,
+			&fName, &lName, &dobStr, &mp.Gender, &bGroup, &mp.TariffType, &nhiaNo,
+			&mp.WardID, &mp.WardName, &mp.BedID, &mp.BedNumber, &mp.AdmittedAt, &mp.Status,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read patient records"})
 			return
 		}
 
-		// No validated assessment exists in this backend yet.
-		mp.RiskLevel = "Not assessed"
+		mp.PatientName = fName + " " + lName
+		if t, err := time.Parse(time.RFC3339, dobStr); err == nil {
+			mp.Age = time.Now().Year() - t.Year()
+		} else if t, err := time.Parse("2006-01-02T15:04:05Z", dobStr); err == nil {
+			mp.Age = time.Now().Year() - t.Year()
+		} else if t, err := time.Parse("2006-01-02", dobStr[:10]); err == nil {
+			mp.Age = time.Now().Year() - t.Year()
+		}
 
-		if riskFilter == "" || riskFilter == mp.RiskLevel {
+		if bGroup != nil {
+			mp.BloodGroup = *bGroup
+		}
+		if nhiaNo != nil {
+			mp.InsuranceNumber = *nhiaNo
+		}
+
+		mp.TriageAcuity = "stable"
+		mp.DepositStatus = "paid"
+		mp.Status = "admitted"
+
+		if riskFilter == "" || riskFilter == mp.TriageAcuity {
 			patients = append(patients, mp)
 		}
 	}
@@ -642,4 +665,195 @@ func (h *Handler) HandleUpdateDischargeChecklist(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dc)
+}
+func (h *Handler) HandleSignNursingNote(c *gin.Context) {
+	noteID := c.Param("id")
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+
+	var isSigned bool
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT is_signed FROM nursing_notes WHERE id = $1 FOR UPDATE`, noteID).Scan(&isSigned)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Nursing note not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query note"})
+		return
+	}
+
+	if isSigned {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nursing note is already signed and locked"})
+		return
+	}
+
+	_, err = tx.ExecContext(c.Request.Context(), `UPDATE nursing_notes SET is_signed = true, signed_at = CURRENT_TIMESTAMP, signed_by = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, userID, noteID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sign note"})
+		return
+	}
+
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "SIGN_NURSING_NOTE",
+		ResourceType: "NursingNote",
+		ResourceID:   noteID,
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Nursing note signed successfully"})
+}
+
+func (h *Handler) HandleSignShiftHandover(c *gin.Context) {
+	handoverID := c.Param("id")
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+
+	var status string
+	var outgoingNurseID string
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT status, outgoing_nurse_id FROM shift_handovers WHERE id = $1 FOR UPDATE`, handoverID).Scan(&status, &outgoingNurseID)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Shift handover not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query handover"})
+		return
+	}
+
+	if status == "SIGNED" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Shift handover is already signed"})
+		return
+	}
+	if outgoingNurseID == userID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Outgoing nurse cannot sign their own handover"})
+		return
+	}
+
+	_, err = tx.ExecContext(c.Request.Context(), `UPDATE shift_handovers SET status = 'SIGNED', incoming_nurse_id = $1, signed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, userID, handoverID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sign handover"})
+		return
+	}
+
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "SIGN_SHIFT_HANDOVER",
+		ResourceType: "ShiftHandover",
+		ResourceID:   handoverID,
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Shift handover signed successfully"})
+}
+
+func (h *Handler) HandleCompleteDischargeChecklist(c *gin.Context) {
+	admissionID := c.Param("id")
+	userID := c.GetString(auth.ContextUserID)
+	userName := c.GetString(auth.ContextUsername)
+	userRole := c.GetString(auth.ContextUserRole)
+
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer common.Rollback(tx)
+
+	if !common.AdmissionFolderAccess(c, tx, admissionID, "") {
+		return
+	}
+
+	var status string
+	var m1, m2, m3, m4 bool
+	err = tx.QueryRowContext(c.Request.Context(), `SELECT status, medications_reconciled, follow_up_scheduled, patient_educated, billing_cleared FROM discharge_checklists WHERE admission_id = $1 FOR UPDATE`, admissionID).Scan(&status, &m1, &m2, &m3, &m4)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Discharge checklist not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query checklist"})
+		return
+	}
+
+	if status == "COMPLETED" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Discharge checklist is already completed"})
+		return
+	}
+	if !m1 || !m2 || !m3 || !m4 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "All checklist items must be true before completion"})
+		return
+	}
+
+	_, err = tx.ExecContext(c.Request.Context(), `UPDATE discharge_checklists SET status = 'COMPLETED', completed_by = $1, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE admission_id = $2`, userID, admissionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete checklist"})
+		return
+	}
+
+	// Discharge the admission and free up the bed
+	_, err = tx.ExecContext(c.Request.Context(), `UPDATE admissions SET status = 'DISCHARGED', discharged_at = CURRENT_TIMESTAMP, discharged_by = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, userID, admissionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update admission status"})
+		return
+	}
+
+	_, err = tx.ExecContext(c.Request.Context(), `UPDATE beds SET status = 'AVAILABLE', updated_at = CURRENT_TIMESTAMP FROM admissions WHERE beds.id = admissions.bed_id AND admissions.id = $1`, admissionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to free up bed"})
+		return
+	}
+
+	if err := h.auditWriter.RecordTx(c.Request.Context(), tx, auditlog.Entry{
+		UserID:       &userID,
+		UserName:     userName,
+		UserRole:     userRole,
+		Service:      "core-go",
+		Module:       "nursing-services",
+		Action:       "COMPLETE_DISCHARGE_CHECKLIST",
+		ResourceType: "DischargeChecklist",
+		ResourceID:   admissionID,
+	}); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Audit logging unavailable"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Discharge checklist completed successfully"})
 }

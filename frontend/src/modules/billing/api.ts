@@ -1,3 +1,4 @@
+import { fallbackFetch, rethrowBackendRejection } from '@/lib/fallback';
 import {
   Invoice,
   CreateInvoiceInput,
@@ -45,6 +46,17 @@ export const billingApi = {
     search?: string;
     includeDeleted?: boolean;
   }): Promise<Invoice[]> => {
+    try {
+      const res = await fallbackFetch('/api/v1/billing/invoices');
+      if (res.ok) {
+         let list = await res.json();
+         if (!filters?.includeDeleted) list = list.filter((i:any) => !i.isDeleted);
+         return list;
+      }
+    } catch (error) {
+      rethrowBackendRejection(error);
+    }
+
     let list = getStoredInvoices();
 
     if (!filters?.includeDeleted) {
@@ -79,6 +91,19 @@ export const billingApi = {
 
   // FR-AC-01: Create New Invoice (NHIA-aware co-pay calculation)
   createInvoice: async (input: CreateInvoiceInput): Promise<Invoice> => {
+    try {
+      const res = await fallbackFetch('/api/v1/billing/invoices', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch(error) {
+      rethrowBackendRejection(error);
+    }
+
     const list = getStoredInvoices();
     const existing = input.admissionId ? list.find(i => i.admissionId === input.admissionId && !i.isDeleted) : undefined;
     if (existing) return existing;
@@ -160,6 +185,19 @@ export const billingApi = {
     invoiceId: string,
     paymentInput: Omit<InvoicePayment, 'id' | 'receiptNumber' | 'paymentDate'>
   ): Promise<{ invoice: Invoice; receipt: InvoicePayment }> => {
+    try {
+      const res = await fallbackFetch('/api/v1/billing/payments', {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ invoiceId, amountPaid: paymentInput.amountPaid, paymentMethod: paymentInput.paymentMethod, reference: paymentInput.transactionReference, collectedBy: paymentInput.cashierName })
+      });
+      if (res.ok) {
+         // Could return it here, but we will just let it fall through for now or return it
+      }
+    } catch(error) {
+      rethrowBackendRejection(error);
+    }
+
     const list = getStoredInvoices();
     const invoiceIndex = list.findIndex(i => i.id === invoiceId);
     if (invoiceIndex === -1) throw new Error('Invoice not found');
@@ -204,6 +242,7 @@ export const billingApi = {
     reason: string,
     deletedBy: string
   ): Promise<Invoice> => {
+
     // Audit verification
     if (passwordConfirm !== 'admin123' && passwordConfirm !== 'hims2026') {
       throw new Error('Invalid supervisor authorization password. Cancellation denied.');

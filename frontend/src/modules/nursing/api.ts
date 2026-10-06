@@ -1,3 +1,4 @@
+import { fallbackFetch, rethrowBackendRejection } from '@/lib/fallback';
 import {
   InpatientAdmission,
   Ward,
@@ -104,6 +105,18 @@ export function calculateNEWS2(v: {
 export const nursingApi = {
   // FR-NS-01: Inpatient Admissions & Intake
   getAdmissions: async (wardFilter?: string): Promise<InpatientAdmission[]> => {
+    try {
+      const res = await fallbackFetch(`/api/v1/nursing/my-patients`);
+      if (res.ok) {
+        let admissions = (await res.json()).patients || [];
+        if (wardFilter && wardFilter !== 'all') {
+           admissions = admissions.filter((a: any) => a.wardId === wardFilter);
+        }
+        return admissions;
+      }
+    } catch (error) {
+      rethrowBackendRejection(error);
+    }
     const admissions = getStored<InpatientAdmission[]>(STORAGE_KEYS.ADMISSIONS, INITIAL_ADMISSIONS);
     if (wardFilter && wardFilter !== 'all') {
       return admissions.filter(a => a.wardId === wardFilter);
