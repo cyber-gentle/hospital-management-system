@@ -129,7 +129,7 @@ export const FinancialStatementsView: React.FC = () => {
         </div>
       ) : statementType === "TRIAL_BALANCE" && trialBalance ? (
         /* --- TRIAL BALANCE --- */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+        <div id="printable-statement" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
           <div className="border-b border-slate-200 pb-4 text-center">
             <h2 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">
               Federal Teaching Hospital
@@ -219,7 +219,7 @@ export const FinancialStatementsView: React.FC = () => {
         </div>
       ) : statementType === "INCOME_STATEMENT" && incomeStatement ? (
         /* --- INCOME STATEMENT (PROFIT & LOSS) --- */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+        <div id="printable-statement" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
           <div className="border-b border-slate-200 pb-4 text-center">
             <h2 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">
               Federal Teaching Hospital
@@ -302,7 +302,7 @@ export const FinancialStatementsView: React.FC = () => {
         </div>
       ) : statementType === "BALANCE_SHEET" && balanceSheet ? (
         /* --- BALANCE SHEET --- */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+        <div id="printable-statement" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
           <div className="border-b border-slate-200 pb-4 text-center">
             <h2 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">
               Federal Teaching Hospital

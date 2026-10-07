@@ -16,6 +16,8 @@ import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
 import { NhiaClaimsView } from "./modules/nhiaclaims/NhiaClaimsView";
+import { GopdView } from "./modules/gopd/GopdView";
+import { LaboratoryView } from "./modules/laboratory/LaboratoryView";
 import BillingDesignPreview from "./BillingDesignPreview";
 import { DEMO_MODE } from './lib/demo';
 import { Login } from './lib/Login';
@@ -239,6 +241,8 @@ const Dashboard: React.FC = () => {
           <MedicalRecordsView onBackToDashboard={() => setActiveModule(null)} />
         ) : activeModule === "nursing" ? (
           <NursingView />
+        ) : activeModule === "gopd" ? (
+          <GopdView />
         ) : activeModule === "billing" ? (
           <BillingView />
         ) : activeModule === "pharmacy" ? (
@@ -251,6 +255,8 @@ const Dashboard: React.FC = () => {
           <SubstoreView />
         ) : activeModule === "nhia" ? (
           <NhiaClaimsView />
+        ) : activeModule === "laboratory" ? (
+          <LaboratoryView />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -318,12 +324,14 @@ const Dashboard: React.FC = () => {
                   const isImplemented =
                     mod.id === "medicalrecords" ||
                     mod.id === "nursing" ||
+                    mod.id === "gopd" ||
                     mod.id === "billing" ||
                     mod.id === "pharmacy" ||
                     mod.id === "appointments" ||
                     mod.id === "accounting" ||
                     mod.id === "substore" ||
-                    mod.id === "nhia";
+                    mod.id === "nhia" ||
+                    mod.id === "laboratory";
                   return (
                     <div
                       key={mod.id}

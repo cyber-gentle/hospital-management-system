@@ -278,7 +278,7 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 - [ ] Expand `docs/03_SRS.md` §2 into detailed FR list for these 4 modules
 - [ ] Laboratory (LIS) implementation
 - [ ] NHIA/HMO claims implementation
-- [ ] GOPD queue/consultation implementation
+- [x] GOPD queue/consultation implementation (Frontend complete on feat/group-2-gopd)
 - [ ] Radiology/Imaging implementation
 - [ ] Internal QA pass on Build Group 2 (no hospital sign-off yet)
 
