@@ -106,7 +106,7 @@ func TestAdmissionAndFinancialUpdatesRollbackOnAuditFailure(t *testing.T) {
 		if _, err := db.Exec(`UPDATE admissions SET status='DISCHARGED' WHERE id=$1`, f.admission); err != nil {
 			t.Fatal(err)
 		}
-		response := send(r, "POST", "/admit", map[string]interface{}{"patient_id": f.patient, "ward_id": f.ward, "bed_id": f.bed})
+		response := send(r, "POST", "/admit", map[string]interface{}{"patientId": f.patient, "wardId": f.ward, "bedId": f.bed})
 		if available {
 			if response.Code != 201 {
 				t.Fatalf("%d %s", response.Code, response.Body)
@@ -197,7 +197,7 @@ func TestConcurrentAdmissionsCannotShareABed(t *testing.T) {
 	responses := make(chan *httptest.ResponseRecorder, 2)
 	for _, patient := range []string{first.patient, second.patient} {
 		go func(patient string) {
-			responses <- send(r, "POST", "/admit", map[string]interface{}{"patient_id": patient, "ward_id": first.ward, "bed_id": first.bed})
+			responses <- send(r, "POST", "/admit", map[string]interface{}{"patientId": patient, "wardId": first.ward, "bedId": first.bed})
 		}(patient)
 	}
 	success := 0
@@ -300,11 +300,11 @@ func TestFolderGateRequiresPositiveDepositOrExplicitEmergencyMarker(t *testing.T
 			if response.Code != http.StatusPaymentRequired {
 				t.Fatalf("%d: %s", response.Code, response.Body)
 			}
-		} else if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"BLOCKED"`) {
+		} else if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"eligible_for_service":false`) {
 			t.Fatalf("%d: %s", response.Code, response.Body)
 		}
 	}
-	if response := send(r, "POST", "/vitals", map[string]interface{}{"patient_id": f.patient, "temperature": 36.5}); response.Code != http.StatusPaymentRequired {
+	if response := send(r, "POST", "/vitals", map[string]interface{}{"patientId": f.patient, "temperature": 36.5}); response.Code != http.StatusPaymentRequired {
 		t.Fatalf("vitals bypassed gate: %d %s", response.Code, response.Body)
 	}
 	if _, err := db.Exec(`UPDATE wards SET ward_type='A&E' WHERE id=$1`, f.ward); err != nil {
@@ -387,12 +387,12 @@ func TestClinicalAndFinancialWritesRollbackWhenAuditFails(t *testing.T) {
 			payload                                  interface{}
 		}{
 			{"patient", "/patient", "POST", "patients", "first_name = '" + patientPayload["first_name"].(string) + "'", "CREATE_PATIENT", patientPayload},
-			{"vitals", "/vitals", "POST", "vitals", "patient_id = '" + f.patient + "'", "CREATE_VITALS", map[string]interface{}{"patient_id": f.patient, "temperature": 36.5}},
-			{"note", "/notes", "POST", "nursing_notes", "patient_id = '" + f.patient + "'", "CREATE_NURSING_NOTE", map[string]interface{}{"patient_id": f.patient, "admission_id": f.admission, "note_type": "GENERAL", "notes": "Synthetic note"}},
-			{"task", "/tasks", "POST", "nursing_tasks", "patient_id = '" + f.patient + "'", "CREATE_NURSING_TASK", map[string]interface{}{"patient_id": f.patient, "admission_id": f.admission, "task_type": "ASSESSMENT", "description": "Synthetic task", "due_at": "2030-01-01T00:00:00Z"}},
-			{"plan", "/plans", "POST", "care_plans", "patient_id = '" + f.patient + "'", "CREATE_CARE_PLAN", map[string]interface{}{"patient_id": f.patient, "admission_id": f.admission, "interventions": "Synthetic plan"}},
-			{"handover", "/handover", "POST", "shift_handovers", "ward_id = '" + f.ward + "'", "CREATE_SHIFT_HANDOVER", map[string]interface{}{"ward_id": f.ward, "shift_date": "2026-10-06", "shift_type": "MORNING", "endorsement_notes": "Synthetic handover"}},
-			{"checklist", "/checklist/" + f.admission, "PUT", "discharge_checklists", "admission_id = '" + f.admission + "'", "UPDATE_DISCHARGE_CHECKLIST", map[string]interface{}{"patient_educated": true}},
+			{"vitals", "/vitals", "POST", "vitals", "patient_id = '" + f.patient + "'", "CREATE_VITALS", map[string]interface{}{"patientId": f.patient, "temperature": 36.5}},
+			{"note", "/notes", "POST", "nursing_notes", "patient_id = '" + f.patient + "'", "CREATE_NURSING_NOTE", map[string]interface{}{"patientId": f.patient, "admissionId": f.admission, "noteType": "GENERAL", "notes": "Synthetic note"}},
+			{"task", "/tasks", "POST", "nursing_tasks", "patient_id = '" + f.patient + "'", "CREATE_NURSING_TASK", map[string]interface{}{"patientId": f.patient, "admissionId": f.admission, "taskType": "ASSESSMENT", "description": "Synthetic task", "dueAt": "2030-01-01T00:00:00Z"}},
+			{"plan", "/plans", "POST", "care_plans", "patient_id = '" + f.patient + "'", "CREATE_CARE_PLAN", map[string]interface{}{"patientId": f.patient, "admissionId": f.admission, "interventions": "Synthetic plan"}},
+			{"handover", "/handover", "POST", "shift_handovers", "ward_id = '" + f.ward + "'", "CREATE_SHIFT_HANDOVER", map[string]interface{}{"wardId": f.ward, "shiftDate": "2026-10-06", "shiftType": "MORNING", "endorsementNotes": "Synthetic handover"}},
+			{"checklist", "/checklist/" + f.admission, "PUT", "discharge_checklists", "admission_id = '" + f.admission + "'", "UPDATE_DISCHARGE_CHECKLIST", map[string]interface{}{"patientEducated": true}},
 			{"invoice", "/invoice", "POST", "invoices", "patient_id = '" + f.patient + "'", "CREATE_INVOICE", map[string]interface{}{"patient_id": f.patient, "line_items": []interface{}{map[string]interface{}{"description": "Synthetic charge", "department": "TEST", "quantity": 1, "unit_price": "100.00"}}}},
 			{"payment", "/payment", "POST", "payments", "patient_id = '" + f.patient + "'", "CREATE_PAYMENT", map[string]interface{}{"patient_id": f.patient, "amount_paid": "10.00", "payment_method": "CASH"}},
 			{"wallet", "/fund", "POST", "wallet_transactions", "wallet_id = (SELECT id FROM wallets WHERE patient_id = '" + f.patient + "')", "FUND_WALLET_MANUAL", map[string]interface{}{"patient_id": f.patient, "amount": "20.00", "payment_method": "CASH", "reference": "Synthetic receipt"}},
