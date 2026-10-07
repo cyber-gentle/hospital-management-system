@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/subtle"
+	"database/sql"
 	"net/http"
 	"strings"
 
@@ -103,6 +104,70 @@ func InternalServiceAuthRequired(internalKey string) gin.HandlerFunc {
 		if subtle.ConstantTimeCompare([]byte(providedKey), []byte(internalKey)) != 1 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Unauthorized internal service call",
+			})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// RequirePermission checks if a user has a specific permission via role defaults OR per-user overrides
+func RequirePermission(db *sql.DB, module, action string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleVal, _ := c.Get(ContextUserRole)
+		userRole, _ := roleVal.(string)
+
+		userIDVal, _ := c.Get(ContextUserID)
+		userID, _ := userIDVal.(string)
+		if userID == "" || userRole == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			return
+		}
+		if db != nil {
+			var currentUsername, currentDepartment string
+			err := db.QueryRowContext(c.Request.Context(), `SELECT role,username,department FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL`, userID).Scan(&userRole, &currentUsername, &currentDepartment)
+			if err == sql.ErrNoRows {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Account is inactive or unavailable"})
+				return
+			}
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+				return
+			}
+			c.Set(ContextUserRole, userRole)
+			c.Set(ContextUsername, currentUsername)
+			c.Set(ContextDepartment, currentDepartment)
+		}
+
+		if userRole == "ADMIN" {
+			c.Next()
+			return
+		}
+
+		permissionID := strings.ToLower(module + ":" + action)
+		if db == nil {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+			return
+		}
+
+		query := `
+			SELECT EXISTS (
+				SELECT 1 FROM role_permissions WHERE role = $1 AND permission_id = $2
+				UNION ALL
+				SELECT 1 FROM user_permissions WHERE user_id = $3 AND permission_id = $2
+			)`
+
+		var allowed bool
+		err := db.QueryRowContext(c.Request.Context(), query, userRole, permissionID, userID).Scan(&allowed)
+
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+			return
+		}
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Insufficient permissions to access this resource",
 			})
 			return
 		}

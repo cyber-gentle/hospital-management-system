@@ -36,6 +36,25 @@ func NewWriter(db *sql.DB) *Writer {
 
 // Record inserts an audit record into the immutable audit_logs table
 func (w *Writer) Record(ctx context.Context, e Entry) error {
+	return w.record(ctx, w.db, e)
+}
+
+// RecordTx writes the same mandatory audit entry inside the caller's clinical
+// or financial transaction. The caller must roll back if this method fails.
+// Approved 2026-10-06: preserve Record's format/defaults/error behavior while
+// adding atomic mutation-and-audit support (FR-AC-05/07, FR-NS-01/04/05).
+func (w *Writer) RecordTx(ctx context.Context, tx *sql.Tx, e Entry) error {
+	if tx == nil {
+		return fmt.Errorf("audit transaction is required")
+	}
+	return w.record(ctx, tx, e)
+}
+
+type executor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func (w *Writer) record(ctx context.Context, db executor, e Entry) error {
 	if e.Service == "" {
 		e.Service = "core-go"
 	}
@@ -68,7 +87,7 @@ func (w *Writer) Record(ctx context.Context, e Entry) error {
 		)`
 
 	now := time.Now().UTC()
-	_, err = w.db.ExecContext(ctx, query,
+	_, err = db.ExecContext(ctx, query,
 		now,
 		e.UserID,
 		e.UserName,

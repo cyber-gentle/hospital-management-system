@@ -9,23 +9,33 @@ import (
 	"sort"
 	"strings"
 
+	"hospital-hims/services/core-go/internal/common"
 	"hospital-hims/services/core-go/migrations"
 )
 
 // RunMigrations applies all pending .up.sql migrations embedded in the migrations package
 func (db *DB) RunMigrations(ctx context.Context) error {
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("start migrations: %w", err)
+	}
+	defer common.Rollback(tx)
+	// Serialize startup across service instances and parallel integration tests.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(734901825)`); err != nil {
+		return fmt.Errorf("lock migrations: %w", err)
+	}
 	// 1. Ensure the schema_migrations tracking table exists
 	tableQuery := `
 	CREATE TABLE IF NOT EXISTS schema_migrations (
 		version VARCHAR(255) PRIMARY KEY,
 		applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);`
-	if _, err := db.ExecContext(ctx, tableQuery); err != nil {
+	if _, err := tx.ExecContext(ctx, tableQuery); err != nil {
 		return fmt.Errorf("failed to create schema_migrations table: %w", err)
 	}
 
 	// 2. Fetch already applied migration versions
-	rows, err := db.QueryContext(ctx, "SELECT version FROM schema_migrations")
+	rows, err := tx.QueryContext(ctx, "SELECT version FROM schema_migrations")
 	if err != nil {
 		return fmt.Errorf("failed to query applied migrations: %w", err)
 	}
@@ -41,6 +51,9 @@ func (db *DB) RunMigrations(ctx context.Context) error {
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("error reading applied migrations: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close migration versions: %w", err)
 	}
 
 	// 3. Find and sort all .up.sql files from embedded migrations FS
@@ -68,27 +81,19 @@ func (db *DB) RunMigrations(ctx context.Context) error {
 			return fmt.Errorf("failed to read migration file %s: %w", fileName, err)
 		}
 
-		tx, err := db.BeginTx(ctx, &sql.TxOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to start transaction for %s: %w", fileName, err)
-		}
-
 		if _, err := tx.ExecContext(ctx, string(content)); err != nil {
-			_ = tx.Rollback()
 			return fmt.Errorf("failed executing migration %s: %w", fileName, err)
 		}
 
 		if _, err := tx.ExecContext(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", fileName); err != nil {
-			_ = tx.Rollback()
 			return fmt.Errorf("failed to record migration %s: %w", fileName, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit migration %s: %w", fileName, err)
 		}
 
 		log.Printf("Applied database migration: %s", fileName)
 	}
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migrations: %w", err)
+	}
 	return nil
 }

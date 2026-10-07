@@ -135,3 +135,37 @@ Not yet written up. Tracked as open items in `TASKS.md` §1:
 
 These remain **assumed**, not decided, and still need hospital
 validation. Nothing here should be read as confirmed.
+
+---
+
+## DECIDED — Audit transaction support (2026-10-06)
+
+The project owner explicitly approved adding transaction support to the
+existing audit writer, as an exception to AGENTS.md rule 2. Preserve its
+existing logging behavior and tests. Clinical and financial Go mutations
+must insert their audit entry inside the same transaction before committing.
+An audit failure must roll back the data mutation.
+
+## DECIDED — Wallet webhooks disabled (2026-10-06)
+
+Keep wallet payment webhooks disabled until a payment provider is chosen.
+The public endpoint returns 503 before parsing or crediting any event. A
+future provider integration must verify its signature and event contract,
+use durable event idempotency, and retain transactional audit logging.
+
+## DECIDED — Automatic discharge consolidation disabled (2026-10-06)
+
+Disable automatic consolidation until approved tariffs and billable task
+mappings are configured. Neither the backend's invented nursing-task price
+nor the frontend's demo charges may generate an automatic discharge invoice.
+The earlier 100%-checklist decision still defines the eventual trigger;
+there is no new Matron override decision.
+
+## DECIDED — Deposit amount and emergency exemption (2026-10-06)
+
+The project owner selected any positive deposit and an explicit A&E ward
+marker. Clinical folder access for an active admission requires a live
+deposit with paid_amount > 0, unless its ward has is_accident_emergency=true.
+A ward name or free-text ward type does not grant an exemption. This resolves
+the earlier open sub-questions; admission intake must exist so that its
+deposit can be recorded, and clinical folder access enforces the gate.

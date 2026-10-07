@@ -16,6 +16,9 @@ import (
 	"hospital-hims/services/core-go/internal/config"
 	"hospital-hims/services/core-go/internal/database"
 	"hospital-hims/services/core-go/internal/internalapi"
+	"hospital-hims/services/core-go/internal/modules/billing"
+	"hospital-hims/services/core-go/internal/modules/medicalrecords"
+	"hospital-hims/services/core-go/internal/modules/nursing"
 )
 
 func main() {
@@ -104,6 +107,20 @@ func main() {
 				"department": c.GetString(auth.ContextDepartment),
 			})
 		})
+
+		// Initialize Medical Records Module
+		if db != nil && auditWriter != nil {
+			mrHandler := medicalrecords.NewHandler(db.DB, auditWriter, tokens)
+			mrHandler.RegisterRoutes(apiV1)
+
+			// Initialize Nursing Services Module
+			nsHandler := nursing.NewHandler(db.DB, auditWriter, tokens)
+			nsHandler.RegisterRoutes(apiV1)
+
+			// Initialize Accounts and Billing Module
+			billingHandler := billing.NewHandler(db.DB, auditWriter, tokens)
+			billingHandler.RegisterRoutes(apiV1)
+		}
 	}
 
 	srv := &http.Server{

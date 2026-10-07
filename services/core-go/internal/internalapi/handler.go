@@ -92,6 +92,7 @@ func (h *Handler) HandleAuthzCheck(c *gin.Context) {
 	role := c.Query("role")
 	module := c.Query("module")
 	action := c.Query("action")
+	userID := c.Query("user_id")
 
 	if role == "" || module == "" || action == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -100,6 +101,20 @@ func (h *Handler) HandleAuthzCheck(c *gin.Context) {
 		return
 	}
 
+	if userID != "" {
+		if h.db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+			return
+		}
+		if err := h.db.QueryRowContext(c.Request.Context(), `SELECT role FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL`, userID).Scan(&role); err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusOK, gin.H{"allowed": false, "reason": "Inactive or unavailable account"})
+				return
+			}
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+			return
+		}
+	}
 	// ADMIN has universal access
 	if strings.EqualFold(role, "ADMIN") {
 		c.JSON(http.StatusOK, gin.H{
@@ -125,10 +140,12 @@ func (h *Handler) HandleAuthzCheck(c *gin.Context) {
 		SELECT EXISTS (
 			SELECT 1 FROM role_permissions
 			WHERE role = $1 AND permission_id = $2
+			UNION ALL
+			SELECT 1 FROM user_permissions WHERE user_id = NULLIF($3,'')::uuid AND permission_id=$2
 		)`
 
 	var allowed bool
-	if err := h.db.QueryRowContext(c.Request.Context(), query, role, permissionID).Scan(&allowed); err != nil {
+	if err := h.db.QueryRowContext(c.Request.Context(), query, role, permissionID, userID).Scan(&allowed); err != nil {
 		// Deliberately no fallback matrix here. A second, hard-coded copy of the
 		// permission rules drifts from role_permissions over time, and resolving
 		// a failed query to "allowed" would grant access the matrix never

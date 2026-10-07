@@ -64,8 +64,9 @@ services:
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     environment:
-      VITE_CORE_API_URL: "http://localhost:8080"
-      VITE_INTEROP_API_URL: "http://localhost:8000"
+      CORE_API_URL: "http://core-go:8080"
+      INTEROP_API_URL: "http://interop-py:8000"
+      VITE_DEMO_MODE: "${VITE_DEMO_MODE:-false}"
     volumes:
       - ./frontend:/app
       - /app/node_modules

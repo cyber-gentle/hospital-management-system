@@ -1,3 +1,4 @@
+import { requireDemoMode } from '../../lib/demo';
 import { fallbackFetch, rethrowBackendRejection } from '../../lib/fallback';
 import {
   Appointment,
@@ -15,6 +16,7 @@ const STORAGE_KEY_SLOTS = "hims_appointment_slots_v1";
 const STORAGE_KEY_DOCTORS = "hims_appointment_doctors_v1";
 
 function getStoredDoctors(): Doctor[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DOCTORS);
     if (!raw) {
@@ -29,6 +31,7 @@ function getStoredDoctors(): Doctor[] {
 }
 
 function getStoredSlots(): AvailabilitySlot[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SLOTS);
     if (!raw) {
@@ -47,10 +50,12 @@ function setStoredSlots(slots: AvailabilitySlot[]): void {
     localStorage.setItem(STORAGE_KEY_SLOTS, JSON.stringify(slots));
   } catch (e) {
     console.error("Failed to save appointment slots", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 
 function getStoredAppointments(): Appointment[] {
+  requireDemoMode();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
     if (!raw) {
@@ -69,6 +74,7 @@ function setStoredAppointments(appointments: Appointment[]): void {
     localStorage.setItem(STORAGE_KEY_APPOINTMENTS, JSON.stringify(appointments));
   } catch (e) {
     console.error("Failed to save appointments", e);
+    throw new Error('Unable to save this action. Browser storage is unavailable.', { cause: e });
   }
 }
 

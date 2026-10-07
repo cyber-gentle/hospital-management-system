@@ -123,3 +123,17 @@ def test_rejects_unsigned_token(verifier: TokenVerifier) -> None:
 def test_constructor_requires_a_secret() -> None:
     with pytest.raises(ValueError):
         TokenVerifier("")
+
+
+def test_requires_expiration(verifier: TokenVerifier) -> None:
+    token = jwt.encode({"iss": EXPECTED_ISSUER, "aud": EXPECTED_AUDIENCE, "user_id": "synthetic", "role": "NURSE"}, SECRET, algorithm="HS256")
+    with pytest.raises(HTTPException) as exc:
+        verifier(credentials(token))
+    assert exc.value.status_code == 401
+
+
+@pytest.mark.parametrize("overrides", [{"user_id": None}, {"role": None}, {"sub": "different-user"}])
+def test_rejects_invalid_identity(verifier: TokenVerifier, overrides: dict[str, object]) -> None:
+    with pytest.raises(HTTPException) as exc:
+        verifier(credentials(make_token(**overrides)))
+    assert exc.value.status_code == 401

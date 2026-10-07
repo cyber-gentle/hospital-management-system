@@ -83,20 +83,61 @@ test('demo statements balance and negative balances are shown on the opposite si
   assert.equal(report.isBalanced,false);
 });
 
-test('discharge creates one real invoice and releases the bed', async () => {
+test('discharge billing stays disabled until approved tariffs exist', async () => {
   const {admission, ward, bed} = await admit();
   const dossier = await nursingApi.getDischargeDossier(admission.id);
   await assert.rejects(nursingApi.triggerDischargeBilling(admission.id));
   for (const item of dossier.items) await nursingApi.toggleDischargeItem(admission.id, item.id, 'Synthetic Nurse');
-  const result = await nursingApi.triggerDischargeBilling(admission.id);
-  const invoices = await billingApi.getInvoices();
-  const invoice = invoices.find(i => i.admissionId === admission.id);
-  assert.ok(invoice, 'discharge must create an invoice visible in Billing');
-  assert.equal(invoice.invoiceNumber, result.invoiceId);
-  assert.equal(invoice.patientId, admission.patientId);
-  assert.equal((await nursingApi.triggerDischargeBilling(admission.id)).invoiceId, result.invoiceId);
-  assert.equal((await billingApi.getInvoices()).filter(i => i.admissionId === admission.id).length, 1);
-  assert.notEqual((await nursingApi.getWards()).find(w=>w.id===ward.id)!.beds.find(b=>b.id===bed.id)!.status, 'occupied');
+  await assert.rejects(nursingApi.triggerDischargeBilling(admission.id), /disabled until approved tariffs/);
+  assert.equal((await billingApi.getInvoices()).filter(i => i.admissionId === admission.id).length, 0);
+  assert.equal((await nursingApi.getWards()).find(w=>w.id===ward.id)!.beds.find(b=>b.id===bed.id)!.status, 'occupied');
+});
+
+test('sub-naira NHIA charges retain a nonnegative exact patient share', async () => {
+  const invoice = await billingApi.createInvoice({patientId:'synthetic',patientName:'Synthetic',hospitalNumber:'Synthetic',payerScheme:'NHIA',items:[{description:'Synthetic charge',category:'Consultation',quantity:1,unitPrice:0.60}]});
+  assert.equal(invoice.totalNhiaCovered,0.54);
+  assert.equal(invoice.totalPatientPayable,0.06);
+  assert.equal(invoice.balanceDue,0.06);
+  assert.notEqual(invoice.status,'paid');
+});
+
+test('journal approval cannot post balances twice', async () => {
+  const pending = (await accountingApi.getJournalVouchers()).find(v=>v.status==='PENDING_APPROVAL')!;
+  assert.ok(pending);
+  await accountingApi.approveJournalVoucher(pending.id,'Synthetic Approver','CHIEF_ACCOUNTANT');
+  const first=await accountingApi.getAccounts();
+  await accountingApi.approveJournalVoucher(pending.id,'Synthetic Approver','CHIEF_ACCOUNTANT');
+  assert.deepEqual(await accountingApi.getAccounts(),first);
+});
+
+test('journals reject empty, negative, and mismatched account entries',async()=>{
+  const accounts=await accountingApi.getAccounts();const first=accounts[0]!;const second=accounts[1]!;
+  const req={date:'2026-10-06',referenceNumber:'SYNTHETIC',description:'Synthetic journal',preparedBy:'Synthetic',preparedByRole:'ACCOUNTANT',items:[{accountId:first.id,accountCode:first.code,accountName:first.name,debit:1,credit:0},{accountId:second.id,accountCode:second.code,accountName:second.name,debit:0,credit:1}]};
+  await assert.rejects(accountingApi.createJournalVoucher({...req,items:[]}));
+  await assert.rejects(accountingApi.createJournalVoucher({...req,items:req.items.map(i=>({...i,debit:-1,credit:-1}))}));
+  await assert.rejects(accountingApi.createJournalVoucher({...req,items:req.items.map(i=>({...i,accountCode:'missing-account'}))}));
+  assert.equal((await accountingApi.createJournalVoucher(req)).totalDebit,1);
+});
+
+test('cash receipts credit asset contra accounts and payments debit liabilities',async()=>{
+  const accounts=await accountingApi.getAccounts();const bank=accounts.find(a=>a.code==='1010')!;
+  const asset=accounts.find(a=>a.type==='ASSET' && a.id!==bank.id)!;const liability=accounts.find(a=>a.type==='LIABILITY')!;
+  const request={date:'2026-10-06',type:'RECEIPT' as const,bankAccountId:bank.id,contraAccountId:asset.id,amount:1,description:'Synthetic',paymentMethod:'CASH' as const,referenceNumber:'SYNTHETIC',recordedBy:'Synthetic'};
+  await accountingApi.createCashBankTransaction(request);
+  let after=await accountingApi.getAccounts();
+  assert.equal(after.find(a=>a.id===asset.id)!.balance,asset.balance-1);
+  await accountingApi.createCashBankTransaction({...request,type:'PAYMENT',contraAccountId:liability.id});
+  after=await accountingApi.getAccounts();
+  assert.equal(after.find(a=>a.id===liability.id)!.balance,liability.balance-1);
+  await assert.rejects(accountingApi.createCashBankTransaction({...request,amount:-1}));
+});
+
+test('browser quota failure rejects invoice creation', async () => {
+  await billingApi.getInvoices();
+  const before=localStorage.getItem('hims_billing_invoices_v1');
+  localStorage.setItem=()=>{throw new DOMException('Synthetic quota failure','QuotaExceededError');};
+  await assert.rejects(billingApi.createInvoice({patientId:'synthetic',patientName:'Synthetic',hospitalNumber:'Synthetic',payerScheme:'Cash',items:[{description:'Synthetic',category:'Consultation',quantity:1,unitPrice:1}]}),/Unable to save/);
+  assert.equal(localStorage.getItem('hims_billing_invoices_v1'),before);
 });
 
 test('billing receipts appear in reconciliation and post once to account balances', async () => {

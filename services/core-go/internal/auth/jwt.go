@@ -78,6 +78,8 @@ func (s *TokenService) Validate(tokenStr string) (*UserClaims, error) {
 			return s.secret, nil
 		},
 		jwt.WithIssuer(tokenIssuer),
+		jwt.WithAudience("hims-clients"),
+		jwt.WithExpirationRequired(),
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
 	)
 	if err != nil {
@@ -87,6 +89,9 @@ func (s *TokenService) Validate(tokenStr string) (*UserClaims, error) {
 	claims, ok := token.Claims.(*UserClaims)
 	if !ok || !token.Valid {
 		return nil, errors.New("invalid token claims")
+	}
+	if claims.UserID == "" || claims.Role == "" || claims.Subject != claims.UserID {
+		return nil, errors.New("invalid token identity claims")
 	}
 
 	return claims, nil

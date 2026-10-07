@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { DEMO_MODE } from './demo';
 
 export type UserRole =
   | "DOCTOR"
@@ -29,10 +30,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("hims_auth_token"));
+  const [token, setToken] = useState<string | null>(() => {
+    const saved = localStorage.getItem('hims_auth_token');
+    return !DEMO_MODE && saved === 'mock-jwt-token' ? null : saved;
+  });
   const [user, setUser] = useState<User | null>(() => {
     const cached = localStorage.getItem("hims_user");
-    return cached ? (JSON.parse(cached) as User) : null;
+    try { return cached ? (JSON.parse(cached) as User) : null; } catch { return null; }
   });
 
   useEffect(() => {
