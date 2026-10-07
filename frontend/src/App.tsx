@@ -16,6 +16,7 @@ import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
 import { GopdView } from "./modules/gopd/GopdView";
+import { LaboratoryView } from "./modules/laboratory/LaboratoryView";
 import BillingDesignPreview from "./BillingDesignPreview";
 
 interface ModuleCard {
@@ -244,6 +245,8 @@ const Dashboard: React.FC = () => {
           <AccountingView />
         ) : activeModule === "substore" ? (
           <SubstoreView />
+        ) : activeModule === "laboratory" ? (
+          <LaboratoryView />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -316,7 +319,8 @@ const Dashboard: React.FC = () => {
                     mod.id === "pharmacy" ||
                     mod.id === "appointments" ||
                     mod.id === "accounting" ||
-                    mod.id === "substore";
+                    mod.id === "substore" ||
+                    mod.id === "laboratory";
                   return (
                     <div
                       key={mod.id}
