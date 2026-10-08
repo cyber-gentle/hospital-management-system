@@ -252,4 +252,14 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── maternity/                          # Build Group 3: Maternity & Obstetrics
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── MaternityView.tsx
+│       └── components/
+│           ├── AncBookingModal.tsx
+│           ├── AncVisitModal.tsx
+│           ├── LaborDeliveryModal.tsx
+│           └── PostnatalCareModal.tsx
 ```

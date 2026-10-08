@@ -17,6 +17,7 @@ import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
 import { GopdView } from "./modules/gopd/GopdView";
 import { LaboratoryView } from "./modules/laboratory/LaboratoryView";
+import { MaternityView } from "./modules/maternity/MaternityView";
 import BillingDesignPreview from "./BillingDesignPreview";
 import { DEMO_MODE } from './lib/demo';
 import { Login } from './lib/Login';
@@ -197,6 +198,18 @@ const Dashboard: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={() => setActiveModule("maternity")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "maternity"
+                    ? "bg-pink-50 text-pink-700 border border-pink-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-pink-600"></span>
+                Maternity
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveModule("substore")}
                 className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
                   activeModule === "substore"
@@ -238,6 +251,8 @@ const Dashboard: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {activeModule === "medicalrecords" ? (
           <MedicalRecordsView onBackToDashboard={() => setActiveModule(null)} />
+        ) : activeModule === "maternity" ? (
+          <MaternityView />
         ) : activeModule === "nursing" ? (
           <NursingView />
         ) : activeModule === "gopd" ? (
@@ -320,6 +335,7 @@ const Dashboard: React.FC = () => {
                 {filteredModules.map((mod) => {
                   const isImplemented =
                     mod.id === "medicalrecords" ||
+                    mod.id === "maternity" ||
                     mod.id === "nursing" ||
                     mod.id === "gopd" ||
                     mod.id === "billing" ||
