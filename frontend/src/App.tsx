@@ -15,6 +15,7 @@ import { PharmacyView } from "./modules/pharmacy/PharmacyView";
 import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
+import { RadiologyView } from "./modules/radiology/RadiologyView";
 import BillingDesignPreview from "./BillingDesignPreview";
 import { DEMO_MODE } from './lib/demo';
 import { Login } from './lib/Login';
@@ -248,6 +249,8 @@ const Dashboard: React.FC = () => {
           <AccountingView />
         ) : activeModule === "substore" ? (
           <SubstoreView />
+        ) : activeModule === "radiology" ? (
+          <RadiologyView onBackToDashboard={() => setActiveModule(null)} />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -319,7 +322,8 @@ const Dashboard: React.FC = () => {
                     mod.id === "pharmacy" ||
                     mod.id === "appointments" ||
                     mod.id === "accounting" ||
-                    mod.id === "substore";
+                    mod.id === "substore" ||
+                    mod.id === "radiology";
                   return (
                     <div
                       key={mod.id}
