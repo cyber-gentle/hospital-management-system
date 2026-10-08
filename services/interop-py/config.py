@@ -48,9 +48,9 @@ class Settings:
     jwt_secret: str
     internal_service_key: str
     core_service_url: str
+    database_url: str
     port: int
     cors_allowed_origins: tuple[str, ...]
-
 
 def _cors_allowed_origins() -> tuple[str, ...]:
     """Read the browser origins permitted to call this service.
@@ -88,7 +88,6 @@ def _cors_allowed_origins() -> tuple[str, ...]:
 
     return origins
 
-
 def _required_secret(name: str, min_len: int, generate_hint: str) -> str:
     value = os.getenv(name, "")
 
@@ -101,7 +100,7 @@ def _required_secret(name: str, min_len: int, generate_hint: str) -> str:
     if value.lower() in INSECURE_PLACEHOLDERS:
         raise ConfigurationError(
             f"{name} is set to a known development placeholder published in "
-            f"this repository; generate a real secret with `{generate_hint}`"
+            "this repository; generate a real secret with `{generate_hint}`"
         )
 
     if len(value) < min_len:
@@ -111,7 +110,6 @@ def _required_secret(name: str, min_len: int, generate_hint: str) -> str:
         )
 
     return value
-
 
 def load_settings() -> Settings:
     """Read and validate settings from the environment.
@@ -126,12 +124,15 @@ def load_settings() -> Settings:
     except ValueError as exc:
         raise ConfigurationError(f"PORT must be an integer, got {port_raw!r}") from exc
 
+    database_url = os.getenv("DATABASE_URL", "postgresql://hims_app:hims_dev_password@localhost:5432/hims")
+
     return Settings(
         jwt_secret=_required_secret("JWT_SECRET", MIN_JWT_SECRET_LEN, "openssl rand -base64 48"),
         internal_service_key=_required_secret(
             "INTERNAL_SERVICE_KEY", MIN_INTERNAL_KEY_LEN, "openssl rand -base64 32"
         ),
         core_service_url=os.getenv("CORE_SERVICE_URL", "http://localhost:8080").rstrip("/"),
+        database_url=database_url,
         port=port,
         cors_allowed_origins=_cors_allowed_origins(),
     )

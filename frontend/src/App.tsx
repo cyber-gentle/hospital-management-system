@@ -15,7 +15,8 @@ import { PharmacyView } from "./modules/pharmacy/PharmacyView";
 import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
-import { RadiologyView } from "./modules/radiology/RadiologyView";
+import { GopdView } from "./modules/gopd/GopdView";
+import { LaboratoryView } from "./modules/laboratory/LaboratoryView";
 import BillingDesignPreview from "./BillingDesignPreview";
 import { DEMO_MODE } from './lib/demo';
 import { Login } from './lib/Login';
@@ -239,6 +240,8 @@ const Dashboard: React.FC = () => {
           <MedicalRecordsView onBackToDashboard={() => setActiveModule(null)} />
         ) : activeModule === "nursing" ? (
           <NursingView />
+        ) : activeModule === "gopd" ? (
+          <GopdView />
         ) : activeModule === "billing" ? (
           <BillingView />
         ) : activeModule === "pharmacy" ? (
@@ -249,8 +252,8 @@ const Dashboard: React.FC = () => {
           <AccountingView />
         ) : activeModule === "substore" ? (
           <SubstoreView />
-        ) : activeModule === "radiology" ? (
-          <RadiologyView onBackToDashboard={() => setActiveModule(null)} />
+        ) : activeModule === "laboratory" ? (
+          <LaboratoryView />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -318,12 +321,13 @@ const Dashboard: React.FC = () => {
                   const isImplemented =
                     mod.id === "medicalrecords" ||
                     mod.id === "nursing" ||
+                    mod.id === "gopd" ||
                     mod.id === "billing" ||
                     mod.id === "pharmacy" ||
                     mod.id === "appointments" ||
                     mod.id === "accounting" ||
                     mod.id === "substore" ||
-                    mod.id === "radiology";
+                    mod.id === "laboratory";
                   return (
                     <div
                       key={mod.id}
