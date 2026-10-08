@@ -252,4 +252,14 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── theatre/                            # Build Group 3: Operating Theatre (OR)
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── TheatreView.tsx
+│       └── components/
+│           ├── SurgeryScheduleModal.tsx
+│           ├── PreOpChecklistModal.tsx
+│           ├── IntraOpNotesModal.tsx
+│           └── PacuRecoveryModal.tsx
 ```

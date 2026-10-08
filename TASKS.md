@@ -313,7 +313,7 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 `docs/03_SRS.md` §3 for the module list to expand from)*
 
 - [x] Expand `docs/03_SRS.md` §3 into detailed FR list for these 9 modules
-- [ ] **Theatre implementation**
+- [x] **Theatre implementation**
   - [x] Schema / Migrations for theatre scheduling & logs
   - [x] FR-THE-01: Surgery Scheduling API
   - [x] FR-THE-02: Pre-op Checklist API
