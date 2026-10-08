@@ -142,11 +142,14 @@ To connect the frontend to live Go and Python services as your teammates finish 
 ### D. Roadmap: Build Group 2 — Clinical & Insurance Workflow (`TASKS.md` §3)
 Once Build Group 1 is accepted, the frontend is ready to implement Build Group 2:
 
-1. **GOPD Consultations & Triage Queue (Go Core):**
-   - Outpatient triage queue with vital signs review and queue token numbers.
-   - Doctor consultation desk: Chief complaints, history of presenting illness, physical examination.
-   - ICD-10 diagnosis selector with search and primary/secondary diagnosis tags.
-   - Integrated e-prescriptions and investigation order triggers.
+1. **GOPD Consultations & Triage Queue (Go Core):** `[COMPLETED on feat/group-2-gopd]`
+   - Outpatient triage queue with vital signs review, red-flag abnormality indicators, and queue token numbers.
+   - Dedicated Triage Vitals modal with blood pressure, heart rate, temperature, SpO2, respiratory rate, pain score, consciousness (AVPU), blood glucose, and calculated BMI.
+   - Doctor consultation desk: Chief complaints with quick symptom shortcuts, history of presenting illness (HPI), physical examination templates.
+   - Comprehensive searchable ICD-10 diagnosis selector with primary/secondary tag toggling and frequency shortcuts.
+   - Integrated e-prescriptions modal with standard formulary dosing and route selection.
+   - Integrated diagnostic investigations modal ordering Laboratory (LIS) and Radiology (PACS) studies.
+   - Clinical disposition routing (Discharge Home, Admit to Ward, Refer Specialist, Follow-up Clinic).
 2. **Laboratory / LIS Module (Python Interop `:8000`):**
    - Laboratory test order worklist and specimen collection tracking.
    - Barcode scanning and specimen labeling.
@@ -236,4 +239,17 @@ frontend/src/
 │           ├── StockAdjustmentModal.tsx
 │           ├── RequisitionManagementView.tsx
 │           └── StockAuditLogDrawer.tsx
+│   └── gopd/                               # Build Group 2: GOPD Consultation & Triage
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── icd10Data.ts
+│       ├── GopdView.tsx
+│       └── components/
+│           ├── TriageQueueView.tsx
+│           ├── TriageVitalsModal.tsx
+│           ├── ConsultationDeskView.tsx
+│           ├── ICD10Selector.tsx
+│           ├── PrescriptionModal.tsx
+│           └── InvestigationOrderModal.tsx
 ```
