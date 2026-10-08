@@ -209,6 +209,26 @@ class InventoryApi {
     return updated;
   }
 
+  async updateItem(id: string, updates: Partial<InventoryItem>): Promise<InventoryItem> {
+    const items = this.getStoredItems();
+    const index = items.findIndex((i) => i.id === id);
+    if (index === -1) throw new Error(`Item ${id} not found`);
+
+    const current = items[index]!;
+    const updated: InventoryItem = {
+      ...current,
+      ...updates
+    };
+    if (updates.currentStock !== undefined || updates.minimumReorderLevel !== undefined) {
+      const stock = updated.currentStock;
+      const min = updated.minimumReorderLevel;
+      updated.status = stock === 0 ? 'OUT_OF_STOCK' : stock <= min ? 'LOW_STOCK' : 'IN_STOCK';
+    }
+    items[index] = updated;
+    this.saveItems(items);
+    return updated;
+  }
+
   // --- Vendors ---
 
   async getVendors(): Promise<Vendor[]> {
