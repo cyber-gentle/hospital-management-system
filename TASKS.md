@@ -228,36 +228,36 @@ built, resolve these by picking the most defensible default from
 - [ ] FR-AC-08: Admission deposit enforcement (per Task 1 decision)
 
 ### 2.4 Pharmacy (minimal)
-- [ ] Drug/dispensing entities + migrations
-- [ ] FR-PH-01: Receive prescription
-- [ ] FR-PH-02: Basic allergy/interaction check
-- [ ] FR-PH-03: Dispense + stock deduction
-- [ ] FR-PH-04: Basic stock level view
+- [x] Drug/dispensing entities + migrations
+- [x] FR-PH-01: Receive prescription
+- [x] FR-PH-02: Basic allergy/interaction check
+- [x] FR-PH-03: Dispense + stock deduction
+- [x] FR-PH-04: Basic stock level view
 
 ### 2.5 Appointment Scheduling (new)
-- [ ] Appointment/doctor-availability entities + migrations
-- [ ] FR-AP-01: Doctor availability view
-- [ ] FR-AP-02: Book appointment (linked to Medical Records)
-- [ ] FR-AP-03: Reschedule/cancel
-- [ ] FR-AP-04: Reminders (confirm scope per Task 1 decision before building)
-- [ ] FR-AP-05: Distinguish from GOPD walk-in queue in the UI/data model
+- [x] Appointment/doctor-availability entities + migrations
+- [x] FR-AP-01: Doctor availability view
+- [x] FR-AP-02: Book appointment (linked to Medical Records)
+- [x] FR-AP-03: Reschedule/cancel
+- [x] FR-AP-04: Reminders (confirm scope per Task 1 decision before building)
+- [x] FR-AP-05: Distinguish from GOPD walk-in queue in the UI/data model
 
 ### 2.6 Accounting — General Ledger (new)
-- [ ] Chart of accounts / journal voucher entities + migrations
-- [ ] FR-GL-01: Cash/bank transaction recording
-- [ ] FR-GL-02: Journal voucher entry + approval workflow
-- [ ] FR-GL-03: Chart of accounts configuration
-- [ ] FR-GL-04: Financial statement generation
-- [ ] FR-GL-05: Reconciliation against Billing's patient revenue — build
+- [x] Chart of accounts / journal voucher entities + migrations
+- [x] FR-GL-01: Cash/bank transaction recording
+- [x] FR-GL-02: Journal voucher entry + approval workflow
+- [x] FR-GL-03: Chart of accounts configuration
+- [x] FR-GL-04: Financial statement generation
+- [x] FR-GL-05: Reconciliation against Billing's patient revenue — build
       this integration deliberately, not as an afterthought; two
       disconnected ledgers defeats the point of this module
 
 ### 2.7 Sub-store Management (new)
-- [ ] Sub-store/requisition entities + migrations
-- [ ] FR-SS-01: Ward/department-level stock view
-- [ ] FR-SS-02: Requisition from central store
-- [ ] FR-SS-03: Ward-level reorder point tracking
-- [ ] FR-SS-04: Stock adjustment with mandatory audit log entry
+- [x] Sub-store/requisition entities + migrations
+- [x] FR-SS-01: Ward/department-level stock view
+- [x] FR-SS-02: Requisition from central store
+- [x] FR-SS-03: Ward-level reorder point tracking
+- [x] FR-SS-04: Stock adjustment with mandatory audit log entry
 
 ### 2.8 Build Group 1 exit criteria
 - [ ] Full patient journey (Registration → Admission → Vitals/Meds →
@@ -275,28 +275,89 @@ built, resolve these by picking the most defensible default from
 `docs/03_SRS.md` §2 for the current high-level requirement list to expand
 from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 
-- [ ] Expand `docs/03_SRS.md` §2 into detailed FR list for these 4 modules
-- [ ] Laboratory (LIS) implementation
-- [ ] NHIA/HMO claims implementation
-- [ ] GOPD queue/consultation implementation
-- [ ] Radiology/Imaging implementation
-- [ ] Internal QA pass on Build Group 2 (no hospital sign-off yet)
+- [x] Expand `docs/03_SRS.md` §2 into detailed FR list for these 4 modules
+
+### 3.1 Laboratory (LIS)
+- [x] Lab catalog/requests/results entities + migrations (Go owns migrations)
+- [x] FR-LAB-01: Lab test catalog management (Python service)
+- [x] FR-LAB-02: Lab request creation and queue (Python service)
+- [x] FR-LAB-03: Sample collection tracking (Python service)
+- [x] FR-LAB-04: Results entry, verification, and audit-log check (Python service)
+
+### 3.2 NHIA / HMO Claims
+- [x] Providers/claims entities + migrations (Go owns migrations)
+- [x] FR-HMO-01: HMO provider management (Python service)
+- [x] FR-HMO-02: Verify patient coverage (Python service)
+- [x] FR-HMO-03: Generate claim from invoice (Python service)
+- [x] FR-HMO-04: Claim status tracking and response batching (Python service)
+
+### 3.3 GOPD Queue / Consultation
+- [x] Queue/consultation entities + migrations
+- [x] FR-GOPD-01: Add patient to queue + triage priority (Go service)
+- [x] FR-GOPD-02: Active queue visibility by department (Go service)
+- [x] FR-GOPD-03: Doctor consultation (chief complaint, diagnosis, notes) (Go service)
+- [x] FR-GOPD-04: Wire consultation to Pharmacy/Lab/Radiology requests (Go service)
+
+### 3.4 Radiology / Imaging
+- [x] Requests/reports entities + migrations (Go owns migrations)
+- [x] FR-RAD-01: Radiology request creation and queue (Python service)
+- [x] FR-RAD-02: Perform imaging / DICOM stub (Python service)
+- [x] FR-RAD-03: Radiologist reporting and verification (Python service)
+
+### 3.5 Build Group 2 exit criteria
+- [x] Internal QA pass on Build Group 2 (no hospital sign-off yet)
 
 ## 4. Build Group 3 — Specialized Departments & Operations
 
 *(Detail each module's tasks here once Group 2 is stable — see
 `docs/03_SRS.md` §3 for the module list to expand from)*
 
-- [ ] Expand `docs/03_SRS.md` §3 into detailed FR list for these 9 modules
-- [ ] Theatre implementation
-- [ ] Maternity implementation
-- [ ] Accident & Emergency implementation
-- [ ] Mortuary implementation
-- [ ] Audit Department dashboard implementation
-- [ ] HR & Staff Management implementation
-- [ ] Reporting & Analytics implementation
-- [ ] Inventory & Procurement implementation
-- [ ] Security/System Administration implementation
+- [x] Expand `docs/03_SRS.md` §3 into detailed FR list for these 9 modules
+- [ ] **Theatre implementation**
+  - [x] Schema / Migrations for theatre scheduling & logs
+  - [x] FR-THE-01: Surgery Scheduling API
+  - [x] FR-THE-02: Pre-op Checklist API
+  - [x] FR-THE-03: Intra-operative Notes API
+  - [x] FR-THE-04: Post-op Recovery API
+- [ ] **Maternity implementation**
+  - [x] Schema / Migrations for antenatal, delivery, and postnatal tracking
+  - [x] FR-MAT-01: Antenatal Care (ANC) API
+  - [x] FR-MAT-02: Delivery Record API
+  - [x] FR-MAT-03: Postnatal Care API
+- [x] **Accident & Emergency (A&E) implementation**
+  - [x] Schema / Migrations for triage, emergency beds, and stabilization logs
+  - [x] FR-AE-01: Rapid Triage API
+  - [x] FR-AE-02: Emergency Bed Allocation API
+  - [x] FR-AE-03: Stabilization Notes API
+- [x] Mortuary implementation
+  - [x] Schema / Migrations for body logging and storage tracking
+  - [x] FR-MOR-01: Body Logging API
+  - [x] FR-MOR-02: Storage Tracking API
+  - [x] FR-MOR-03: Body Release API
+- [x] Audit Department dashboard implementation
+  - [x] FR-AUD-01: Log Viewer
+  - [x] FR-AUD-02: Advanced Filtering
+  - [x] FR-AUD-03: Anomaly Reports
+- [x] HR & Staff Management implementation
+  - [x] Schema / Migrations for duty roster and leave requests
+  - [x] FR-HR-01: Staff Profiles API
+  - [x] FR-HR-02: Duty Roster API
+  - [x] FR-HR-03: Leave Tracking API
+- [x] Reporting & Analytics implementation
+  - [x] FR-REP-01: Financial Reports
+  - [x] FR-REP-02: Clinical Census
+  - [x] FR-REP-03: Performance Metrics
+- [x] Inventory & Procurement implementation
+  - [x] Schema / Migrations for central store catalog and purchase orders
+  - [x] FR-INV-01: Central Store Catalog API
+  - [x] FR-INV-02: Procurement & POs API
+  - [x] FR-INV-03: Stock Receiving API
+  - [x] FR-INV-04: Sub-store Issuance API
+- [x] Security/System Administration implementation
+  - [x] Schema / Migrations for global configurations
+  - [x] FR-SEC-01: Global Configuration API
+  - [x] FR-SEC-02: RBAC Management API
+  - [x] FR-SEC-03: User Provisioning API
 - [ ] Internal QA pass on full 20-module system (no hospital sign-off yet)
 
 ## 5. First Hospital Engagement (only after all 20 modules pass internal QA)
