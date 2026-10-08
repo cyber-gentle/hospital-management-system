@@ -252,4 +252,14 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── mortuary/                           # Build Group 3: Mortuary & Pathology Services (FR-MOR-01 to FR-MOR-03)
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── MortuaryView.tsx
+│       └── components/
+│           ├── DeceasedIntakeModal.tsx
+│           ├── ColdStorageModal.tsx
+│           ├── AutopsyLogModal.tsx
+│           └── BodyReleaseModal.tsx
 ```

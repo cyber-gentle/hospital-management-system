@@ -17,6 +17,7 @@ import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
 import { GopdView } from "./modules/gopd/GopdView";
 import { LaboratoryView } from "./modules/laboratory/LaboratoryView";
+import { MortuaryView } from "./modules/mortuary/MortuaryView";
 import BillingDesignPreview from "./BillingDesignPreview";
 import { DEMO_MODE } from './lib/demo';
 import { Login } from './lib/Login';
@@ -207,6 +208,18 @@ const Dashboard: React.FC = () => {
                 <span className="w-2 h-2 rounded-full bg-orange-600"></span>
                 Sub-stores
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveModule("mortuary")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "mortuary"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-slate-700"></span>
+                Mortuary
+              </button>
             </nav>
           </div>
 
@@ -254,6 +267,8 @@ const Dashboard: React.FC = () => {
           <SubstoreView />
         ) : activeModule === "laboratory" ? (
           <LaboratoryView />
+        ) : activeModule === "mortuary" ? (
+          <MortuaryView onBackToDashboard={() => setActiveModule(null)} />
         ) : (
           <>
             {/* Architecture Status Banner */}
@@ -327,7 +342,8 @@ const Dashboard: React.FC = () => {
                     mod.id === "appointments" ||
                     mod.id === "accounting" ||
                     mod.id === "substore" ||
-                    mod.id === "laboratory";
+                    mod.id === "laboratory" ||
+                    mod.id === "mortuary";
                   return (
                     <div
                       key={mod.id}
