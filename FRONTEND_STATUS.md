@@ -252,4 +252,16 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── hr/                                 # Build Group 4: HR & Staff Management (FR-HR-01 to FR-HR-03)
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── HrView.tsx
+│       └── components/
+│           ├── StaffListView.tsx
+│           ├── StaffModal.tsx
+│           ├── DutyRosterView.tsx
+│           ├── ShiftModal.tsx
+│           ├── LeaveManagementView.tsx
+│           └── LeaveRequestModal.tsx
 ```
