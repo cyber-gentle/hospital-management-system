@@ -252,4 +252,13 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── emergency/                          # Build Group 3: Accident & Emergency (A&E)
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── EmergencyView.tsx
+│       └── components/
+│           ├── RapidTriageModal.tsx
+│           ├── EmergencyBedBoardModal.tsx
+│           └── StabilizationNotesModal.tsx
 ```
