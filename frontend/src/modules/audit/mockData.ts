@@ -1,0 +1,312 @@
+import { AuditLogEntry, AuditAnomalyException } from './types';
+
+export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
+  {
+    id: 'aud_log_9011',
+    timestamp: '2026-10-08T13:42:15Z',
+    userId: 'usr_acc_04',
+    userName: 'Bello Danjuma',
+    userRole: 'ACCOUNTANT',
+    service: 'core-go',
+    module: 'billing',
+    action: 'DELETE_INVOICE',
+    resourceType: 'invoice',
+    resourceId: 'INV-2026-0941',
+    details: {
+      amount: '₦1,850,000.00',
+      patientHospitalNumber: 'HIMS-2026-00412',
+      reason: 'Duplicate billing claimed by family',
+      approvalAuthority: 'Self-Authorized (Password Confirmed)',
+      previousStatus: 'PENDING_PAYMENT',
+      newStatus: 'SOFT_DELETED'
+    },
+    ipAddress: '192.168.10.45',
+    status: 'SUCCESS',
+    tamperSealHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    isAnomaly: true,
+    anomalyReason: 'High-value invoice soft-deletion exceeding ₦1,000,000 threshold without Chief Accountant dual sign-off'
+  },
+  {
+    id: 'aud_log_9010',
+    timestamp: '2026-10-08T12:30:10Z',
+    userId: 'usr_doc_01',
+    userName: 'Dr. Fatima Abdullahi',
+    userRole: 'DOCTOR',
+    service: 'core-go',
+    module: 'theatre',
+    action: 'CREATE_OPERATION_NOTE',
+    resourceType: 'theatre_session',
+    resourceId: 'OP-2026-088',
+    details: {
+      patientHospitalNumber: 'HIMS-2026-00198',
+      procedureName: 'Emergency Caesarean Section',
+      leadSurgeon: 'Dr. Fatima Abdullahi (MDCN-48192)',
+      anesthetist: 'Dr. Chinedu Eze',
+      spongeCountVerified: true,
+      estimatedBloodLossMl: 450
+    },
+    ipAddress: '192.168.10.88',
+    status: 'SUCCESS',
+    tamperSealHash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0'
+  },
+  {
+    id: 'aud_log_9009',
+    timestamp: '2026-10-08T11:15:22Z',
+    userId: 'usr_py_interop',
+    userName: 'LIS Background Worker (Interop)',
+    userRole: 'SYSTEM',
+    service: 'interop-py',
+    module: 'laboratory',
+    action: 'ANALYSER_RESULT_INGEST',
+    resourceType: 'specimen',
+    resourceId: 'SPEC-2026-4421',
+    details: {
+      analyzerModel: 'Mindray BC-6800Plus',
+      hl7MessageControlId: 'HL7-MSG-982187',
+      testPanel: 'Full Blood Count (FBC)',
+      abnormalFlags: ['WBC_HIGH', 'HB_LOW'],
+      pathologistVerificationPending: true
+    },
+    ipAddress: '10.0.12.102',
+    status: 'SUCCESS',
+    tamperSealHash: 'c4ca4238a0b923820dcc509a6f75849b28a4c979d5718a38a7c6f059a6c9861e'
+  },
+  {
+    id: 'aud_log_9008',
+    timestamp: '2026-10-08T09:45:00Z',
+    userId: 'usr_nhia_02',
+    userName: 'Olufunke Adebayo',
+    userRole: 'NHIA_OFFICER',
+    service: 'interop-py',
+    module: 'nhia',
+    action: 'SUBMIT_BATCH_CLAIMS',
+    resourceType: 'claim_batch',
+    resourceId: 'BATCH-2026-10-A',
+    details: {
+      hmoCode: 'HMO-034-HYGEIA',
+      totalClaimsCount: 142,
+      grossTariffClaimed: '₦4,820,500.00',
+      capitationDeduction: '₦320,000.00',
+      fhirBundleId: 'urn:uuid:6c8bc65e-2d4e-4f1b-8012-70b9921e4210'
+    },
+    ipAddress: '10.0.12.55',
+    status: 'SUCCESS',
+    tamperSealHash: 'e4d909c290d0fb1ca068ffaddf22cbd0addf4113a3aede9741e7d560f1376df0'
+  },
+  {
+    id: 'aud_log_9007',
+    timestamp: '2026-10-08T03:15:40Z',
+    userId: 'usr_ph_03',
+    userName: 'Ibrahim Sani',
+    userRole: 'PHARMACIST',
+    service: 'core-go',
+    module: 'pharmacy',
+    action: 'DISPENSE_CONTROLLED_SUBSTANCE',
+    resourceType: 'prescription',
+    resourceId: 'RX-2026-5509',
+    details: {
+      drugName: 'Morphine Sulphate 10mg/ml Injection',
+      quantityDispensed: 10,
+      prescribingDoctor: 'Dr. K. Balogun',
+      patientHospitalNumber: 'HIMS-2026-00331',
+      batchNumber: 'BATCH-MPH-2026-02',
+      afterHoursFlag: true
+    },
+    ipAddress: '192.168.10.19',
+    status: 'SUCCESS',
+    tamperSealHash: '98f6bcd4621d373cade4e832627b4f6279f6d70bc706fd3b8c3ccf2495b6cb1e',
+    isAnomaly: true,
+    anomalyReason: 'Controlled Schedule II opioid dispensed at 03:15 AM without second pharmacist co-sign'
+  },
+  {
+    id: 'aud_log_9006',
+    timestamp: '2026-10-07T23:55:12Z',
+    userId: 'usr_doc_04',
+    userName: 'Dr. Kenneth Okafor',
+    userRole: 'DOCTOR',
+    service: 'core-go',
+    module: 'accounting',
+    action: 'VIEW_GENERAL_LEDGER',
+    resourceType: 'ledger_account',
+    resourceId: 'ACC-REVENUE-101',
+    details: {
+      attemptedAction: 'READ_BALANCE_SHEET',
+      requiredPermission: 'financial:read_restricted',
+      currentPermissions: ['clinical:write', 'prescription:write'],
+      failureReason: 'RBAC Access Denied: User role DOCTOR does not have accounting audit privilege'
+    },
+    ipAddress: '192.168.10.112',
+    status: 'FAILURE',
+    tamperSealHash: '7692c3ad35409d00e5733494c8635b0bc35b8656bc35ef38b4f3f977d025e999',
+    isAnomaly: true,
+    anomalyReason: 'Consecutive unauthorized attempt to inspect Restricted General Ledger by clinical staff'
+  },
+  {
+    id: 'aud_log_9005',
+    timestamp: '2026-10-07T21:10:04Z',
+    userId: 'usr_ns_02',
+    userName: 'Staff Nurse Grace Okafor',
+    userRole: 'NURSE',
+    service: 'core-go',
+    module: 'nursing',
+    action: 'OVERRIDE_DISCHARGE_CHECKLIST',
+    resourceType: 'admission',
+    resourceId: 'ADM-2026-0812',
+    details: {
+      patientHospitalNumber: 'HIMS-2026-00084',
+      checklistCompletionPercent: 65,
+      bypassedChecklistItems: ['Pharmacy Discharge Meds Reconciled', 'Physiotherapy Cleared'],
+      overrideRationale: 'Emergency transfer to National Hospital Abuja per family request',
+      authorizingConsultant: 'Dr. M. S. Garba (Confirmed by Phone)',
+      unsettledDepositBalance: '₦450,000.00'
+    },
+    ipAddress: '192.168.10.62',
+    status: 'SUCCESS',
+    tamperSealHash: '1f3870be274f6c49b3e31a0c6728957f9780e14a1a6774e70e94209930f7cb67',
+    isAnomaly: true,
+    anomalyReason: 'Nursing discharge checklist forced at 65% with unsettled hospital bill exceeding ₦200,000'
+  },
+  {
+    id: 'aud_log_9004',
+    timestamp: '2026-10-07T16:20:30Z',
+    userId: 'usr_doc_02',
+    userName: 'Dr. Amina Bello',
+    userRole: 'DOCTOR',
+    service: 'core-go',
+    module: 'emergency',
+    action: 'ADMIT_EMERGENCY_DEPOSIT_BYPASS',
+    resourceType: 'admission',
+    resourceId: 'ADM-2026-0810',
+    details: {
+      patientHospitalNumber: 'HIMS-2026-00991',
+      triageCategory: 'RED_IMMEDIATE',
+      presentingComplaint: 'Multiple trauma from RTA, severe shock',
+      statutoryExemptionApplied: 'A&E Unconditional Care Mandate (PRD §4)',
+      depositRequired: '₦0.00'
+    },
+    ipAddress: '192.168.10.77',
+    status: 'SUCCESS',
+    tamperSealHash: 'b578c772cb25d30f4479990496e939a3ca411ff15e07f4e19081235c0165378e'
+  },
+  {
+    id: 'aud_log_9003',
+    timestamp: '2026-10-07T14:05:18Z',
+    userId: 'usr_mor_01',
+    userName: 'Usman Garba',
+    userRole: 'ADMIN',
+    service: 'core-go',
+    module: 'mortuary',
+    action: 'RELEASE_DECEASED_BODY',
+    resourceType: 'deceased_record',
+    resourceId: 'TAG-2026-070',
+    details: {
+      deceasedName: 'Pa Timothy Adeleke',
+      claimingNextOfKin: 'Oluwaseun Adeleke (Son)',
+      burialPermitNumber: 'BUR-2026-9812-FCT',
+      totalStorageBilled: '₦35,000.00',
+      storageReceiptNumber: 'RCP-2026-19283',
+      coronerClearanceApplicable: false
+    },
+    ipAddress: '192.168.10.91',
+    status: 'SUCCESS',
+    tamperSealHash: '2c5a0e5b9804b4c73499b779ec7f53a479261a8f98a280695b2c95454b5df5b1'
+  },
+  {
+    id: 'aud_log_9002',
+    timestamp: '2026-10-07T11:40:55Z',
+    userId: 'usr_admin_01',
+    userName: 'Super Admin',
+    userRole: 'ADMIN',
+    service: 'core-go',
+    module: 'admin',
+    action: 'MODIFY_USER_PERMISSIONS',
+    resourceType: 'user',
+    resourceId: 'usr_acc_04',
+    details: {
+      targetUserName: 'Bello Danjuma',
+      addedRoles: ['CHIEF_ACCOUNTANT_PROXY'],
+      removedRoles: [],
+      reason: 'Temporary delegation while Chief Accountant is on annual leave',
+      boardApprovalRef: 'HOSP-ED-2026-092'
+    },
+    ipAddress: '192.168.10.10',
+    status: 'SUCCESS',
+    tamperSealHash: '6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b'
+  },
+  {
+    id: 'aud_log_9001',
+    timestamp: '2026-10-07T08:12:00Z',
+    userId: 'usr_rec_01',
+    userName: 'Blessing Chukwuma',
+    userRole: 'NURSE',
+    service: 'core-go',
+    module: 'medicalrecords',
+    action: 'REGISTER_NEW_PATIENT',
+    resourceType: 'patient',
+    resourceId: 'HIMS-2026-00450',
+    details: {
+      fullName: 'Aisha Lawal',
+      gender: 'FEMALE',
+      dateOfBirth: '1994-06-15',
+      primaryPhone: '08034567890',
+      stateOfOrigin: 'Kano',
+      nationalIdNumber: 'NIN-7788990011'
+    },
+    ipAddress: '192.168.10.33',
+    status: 'SUCCESS',
+    tamperSealHash: 'd4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35'
+  }
+];
+
+export const INITIAL_ANOMALIES: AuditAnomalyException[] = [
+  {
+    id: 'EXC-2026-001',
+    logId: 'aud_log_9011',
+    timestamp: '2026-10-08T13:42:15Z',
+    severity: 'CRITICAL',
+    category: 'FINANCIAL_DELETION',
+    description: 'High-value patient invoice (₦1,850,000.00) soft-deleted with single user authorization',
+    detectedRule: 'RULE-FIN-01: Any invoice deletion > ₦1,000,000 requires Chief Accountant dual approval',
+    status: 'FLAGGED',
+    logEntry: INITIAL_AUDIT_LOGS[0]!
+  },
+  {
+    id: 'EXC-2026-002',
+    logId: 'aud_log_9007',
+    timestamp: '2026-10-08T03:15:40Z',
+    severity: 'HIGH',
+    category: 'AFTER_HOURS_CLINICAL',
+    description: 'Schedule II Controlled Substance (Morphine) dispensed at 03:15 AM without second verifier',
+    detectedRule: 'RULE-CLIN-04: Nocturnal narcotic dispenses require co-signing by supervising matron',
+    status: 'UNDER_REVIEW',
+    assignedAuditor: 'Auditor Yakubu',
+    reviewNotes: 'Requested shift handover logbook from Ward 4 night supervisor to cross-verify emergency requisition.',
+    reviewedAt: '2026-10-08T09:00:00Z',
+    logEntry: INITIAL_AUDIT_LOGS[4]!
+  },
+  {
+    id: 'EXC-2026-003',
+    logId: 'aud_log_9006',
+    timestamp: '2026-10-07T23:55:12Z',
+    severity: 'MEDIUM',
+    category: 'AUTH_FAILURE_BURST',
+    description: 'Repeated unauthorized access attempts on Restricted General Ledger account by clinical account',
+    detectedRule: 'RULE-SEC-02: Role boundary violation on financial bookkeeping tables',
+    status: 'FLAGGED',
+    logEntry: INITIAL_AUDIT_LOGS[5]!
+  },
+  {
+    id: 'EXC-2026-004',
+    logId: 'aud_log_9005',
+    timestamp: '2026-10-07T21:10:04Z',
+    severity: 'HIGH',
+    category: 'OVERRIDE_ABUSE',
+    description: 'Nursing discharge checklist forced at 65% with unsettled balance exceeding ₦200,000',
+    detectedRule: 'RULE-OPS-03: Checklist override with outstanding balance requires written Medical Director clearance',
+    status: 'UNDER_REVIEW',
+    assignedAuditor: 'Chief Auditor Nwachukwu',
+    reviewNotes: 'Patient was in severe distress necessitating immediate tertiary cardiology referral. Valid emergency context, awaiting post-facto billing settlement form.',
+    reviewedAt: '2026-10-08T08:30:00Z',
+    logEntry: INITIAL_AUDIT_LOGS[6]!
+  }
+];
