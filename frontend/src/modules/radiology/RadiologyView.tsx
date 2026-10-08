@@ -8,10 +8,11 @@ import {
   CheckCircle2,
   Clock,
   Image as ImageIcon,
-  FileText,
+
   UploadCloud,
   Layers,
-  ChevronRight
+  ChevronRight,
+  X
 } from "lucide-react";
 
 interface RadiologyViewProps {
@@ -71,12 +72,25 @@ const MOCK_ORDERS = [
 export const RadiologyView: React.FC<RadiologyViewProps> = ({ onBackToDashboard }) => {
   const [activeTab, setActiveTab] = useState<TabType>("worklist");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [orders, setOrders] = useState(MOCK_ORDERS);
 
-  const filteredOrders = MOCK_ORDERS.filter(o => 
-    o.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.id.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredOrders = orders.filter(o => 
+    o.status !== 'Completed' && (
+      o.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.id.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
+
+  const completedOrders = orders.filter(o => o.status === 'Completed');
+
+  const handleCompleteOrder = () => {
+    if (!selectedOrder) return;
+    setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, status: 'Completed' } : o));
+    setSelectedOrder(null);
+    setActiveTab("completed");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -259,7 +273,10 @@ export const RadiologyView: React.FC<RadiologyViewProps> = ({ onBackToDashboard 
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-300 transition-colors">
+                        <button 
+                          onClick={() => setSelectedOrder(order)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                        >
                           {order.status === 'Pending' ? 'Begin Scan' : 'View Study'}
                           <ChevronRight className="w-4 h-4" />
                         </button>
@@ -282,11 +299,64 @@ export const RadiologyView: React.FC<RadiologyViewProps> = ({ onBackToDashboard 
             )}
 
             {activeTab === "completed" && (
-              <div className="p-12 text-center text-slate-500">
-                <ImageIcon className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                <h3 className="text-lg font-medium text-slate-900">Completed Scans</h3>
-                <p className="mt-2 text-sm">Archived studies and reports will appear here once the radiologist signs off.</p>
-              </div>
+              completedOrders.length > 0 ? (
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-white border-b border-slate-200">
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order / Time</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Patient Details</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Modality / Scan</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Urgency</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {completedOrders.map((order) => (
+                      <tr key={order.id} className="hover:bg-slate-50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-indigo-600">{order.id}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{order.time}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-slate-900">{order.patientName}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{order.patientId}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-slate-900">{order.modality}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{order.scanType}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                            {order.urgency}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => setSelectedOrder(order)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                          >
+                            View Report
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="p-12 text-center text-slate-500">
+                  <ImageIcon className="w-12 h-12 mx-auto text-slate-300 mb-4" />
+                  <h3 className="text-lg font-medium text-slate-900">Completed Scans</h3>
+                  <p className="mt-2 text-sm">Archived studies and reports will appear here once the radiologist signs off.</p>
+                </div>
+              )
             )}
 
             {activeTab === "modalities" && (
@@ -321,6 +391,59 @@ export const RadiologyView: React.FC<RadiologyViewProps> = ({ onBackToDashboard 
           </div>
         </div>
       </main>
+
+      {/* Order Details Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">{selectedOrder.patientName}</h2>
+                <p className="text-sm text-slate-500">{selectedOrder.patientId} • {selectedOrder.modality} ({selectedOrder.scanType})</p>
+              </div>
+              <button 
+                onClick={() => setSelectedOrder(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 flex-1 overflow-auto space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 mb-3">Clinical Notes</h3>
+                <textarea 
+                  className="w-full h-32 p-3 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" 
+                  placeholder="Enter radiologist report or study notes here..."
+                ></textarea>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 mb-3">Images / DICOM</h3>
+                <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors cursor-pointer">
+                  <UploadCloud className="w-8 h-8 text-slate-400 mb-3" />
+                  <p className="text-sm font-medium text-slate-700">Drop DICOM files here</p>
+                  <p className="text-xs text-slate-500 mt-1">or click to browse from PACS</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setSelectedOrder(null)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-white transition-colors"
+              >
+                {selectedOrder.status === 'Completed' ? 'Close' : 'Cancel'}
+              </button>
+              {selectedOrder.status !== 'Completed' && (
+                <button 
+                  onClick={handleCompleteOrder}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                  Save & Complete Study
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

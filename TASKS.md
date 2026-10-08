@@ -1,6 +1,10 @@
 # TASKS.md — Step-by-Step Checklist
 ## Hospital Information Management System (HIMS)
 
+> **IMPORTANT:** The current active focus is **strictly on the frontend**. 
+> Please refer to `frontend_status.md` for current progress and active tasks. 
+> Do not transition to backend work without explicit confirmation.
+
 > Linear roadmap broken down from `PRD.md` / `docs/08_ROADMAP_PHASES.md`.
 > Work top to bottom within each section. Check off `[x]` as completed.
 > Add newly discovered tasks under the relevant section rather than doing
@@ -279,7 +283,7 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 - [ ] Laboratory (LIS) implementation
 - [ ] NHIA/HMO claims implementation
 - [ ] GOPD queue/consultation implementation
-- [ ] Radiology/Imaging implementation
+- [x] Radiology/Imaging implementation (Frontend UI completed)
 - [ ] Internal QA pass on Build Group 2 (no hospital sign-off yet)
 
 ## 4. Build Group 3 — Specialized Departments & Operations

@@ -1,7 +1,7 @@
 # Hospital Information Management System (HIMS) — Frontend Status & Roadmap
 
 > **Current Local Time:** September 28, 2026  
-> **Active Git Branch:** `feat/group-1-medical-records`  
+> **Active Git Branch:** `feat/group-2-radiology`  
 > **Parent / Upstream Branch:** `origin/feat/phase-0-dev-env-and-db` (Commit `d659fa0`)  
 > **Developer Scope:** Strictly Frontend (`frontend/`)  
 > **Repository Rules Adherence:** Fully compliant with `AGENTS.md`, `ARCHITECTURE.md`, and `PRD.md`  
@@ -36,6 +36,7 @@ All 7 modules of Build Group 1 are committed to your local feature branch (`feat
 | `c7dcbee` | **Appointment Scheduling** | `FR-AP-01` to `FR-AP-05` | • Specialist doctor availability roster with interactive 30-min slot calendar<br>• MPI-linked appointment booking modal with department selection<br>• Reschedule and cancel workflows requiring mandatory audit log reasons<br>• Patient reminder preferences (SMS, Email, Phone)<br>• Explicit visual and architectural decoupling from the GOPD walk-in queue |
 | `2f4ece4` | **Accounting — General Ledger** | `FR-GL-01` to `FR-GL-05` | • Real-time cash and bank transaction register with search and date filters<br>• Balanced double-entry Journal Vouchers (Debits must equal Credits) with Chief Accountant approval gate<br>• 4-tier Chart of Accounts (Assets, Liabilities, Equity, Revenue, Expenses)<br>• Financial statement generator: Trial Balance (with Dr=Cr balance validation), P&L, Balance Sheet<br>• Patient revenue reconciliation engine matching Billing receipts against GL with 1-click auto-posting |
 | `ebc4536` | **Sub-store Management** | `FR-SS-01` to `FR-SS-04` | • Ward and surgical theatre stock inventory with batch tracking and expiry flags<br>• Central store replenishment requisition workflow (Draft → Submitted → Approved → Fulfilled)<br>• Reorder point monitoring with quick-reorder triggers for low-stock items<br>• Physical count adjustment modal with mandatory audit justification and immutable adjustment log trail |
+| *pending* | **Radiology / Imaging** | `FR-RA-01` to `FR-RA-04` | • Modality worklist filtering for completed scans<br>• Integrated DICOM placeholder/mockup<br>• Radiologist study reporting and sign-off mockups |
 
 ---
 
@@ -226,6 +227,8 @@ frontend/src/
 │   │       ├── ChartOfAccountsModal.tsx
 │   │       ├── FinancialStatementsView.tsx
 │   │       └── BillingReconciliationView.tsx
+│   ├── radiology/
+│   │   └── RadiologyView.tsx
 │   └── substore/                           # FR-SS-01 to FR-SS-04
 │       ├── types.ts
 │       ├── api.ts
