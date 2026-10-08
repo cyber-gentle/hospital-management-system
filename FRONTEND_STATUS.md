@@ -252,4 +252,20 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── inventory/                          # Build Group 4: FR-INV-01 to FR-INV-04
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── InventoryView.tsx
+│       └── components/
+│           ├── CatalogItemModal.tsx
+│           ├── CatalogListView.tsx
+│           ├── StockAdjustmentModal.tsx
+│           ├── PurchaseOrderModal.tsx
+│           ├── PurchaseOrderApprovalModal.tsx
+│           ├── PurchaseOrderListView.tsx
+│           ├── GoodsReceiptModal.tsx
+│           ├── GoodsReceiptListView.tsx
+│           ├── SubstoreIssuanceModal.tsx
+│           └── SubstoreIssuanceListView.tsx
 ```
