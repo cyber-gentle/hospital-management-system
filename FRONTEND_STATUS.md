@@ -252,4 +252,15 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── audit/                              # Build Group 4: Audit Department Dashboard (FR-AUD-01 to FR-AUD-03)
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── AuditView.tsx
+│       └── components/
+│           ├── LogViewerTable.tsx
+│           ├── LogDetailsDrawer.tsx
+│           ├── AuditFilterToolbar.tsx
+│           ├── AnomalyCenterView.tsx
+│           └── AnomalyExceptionModal.tsx
 ```
