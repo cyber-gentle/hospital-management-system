@@ -252,15 +252,15 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
-│   └── audit/                              # Build Group 4: Audit Department Dashboard (FR-AUD-01 to FR-AUD-03)
+│   └── hr/                                 # Build Group 4: HR & Staff Management (FR-HR-01 to FR-HR-03)
 │       ├── types.ts
 │       ├── api.ts
 │       ├── mockData.ts
-│       ├── AuditView.tsx
+│       ├── HrView.tsx
 │       └── components/
-│           ├── LogViewerTable.tsx
-│           ├── LogDetailsDrawer.tsx
-│           ├── AuditFilterToolbar.tsx
-│           ├── AnomalyCenterView.tsx
-│           └── AnomalyExceptionModal.tsx
-```
+│           ├── StaffListView.tsx
+│           ├── StaffModal.tsx
+│           ├── DutyRosterView.tsx
+│           ├── ShiftModal.tsx
+│           ├── LeaveManagementView.tsx
+│           └── LeaveRequestModal.tsx
