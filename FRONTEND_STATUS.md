@@ -1,8 +1,8 @@
 # Hospital Information Management System (HIMS) — Frontend Status & Roadmap
 
-> **Current Local Time:** September 28, 2026  
-> **Active Git Branch:** `feat/group-1-medical-records`  
-> **Parent / Upstream Branch:** `origin/feat/phase-0-dev-env-and-db` (Commit `d659fa0`)  
+> **Current Local Time:** October 9, 2026  
+> **Active Git Branch:** `feat/group-4-admin`  
+> **Parent / Upstream Branch:** `origin/main`  
 > **Developer Scope:** Strictly Frontend (`frontend/`)  
 > **Repository Rules Adherence:** Fully compliant with `AGENTS.md`, `ARCHITECTURE.md`, and `PRD.md`  
 > **Push Status:** **PAUSED (Local Only)** — *Do NOT push to remote until you give the explicit go-ahead.*
@@ -252,12 +252,15 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
-│   └── reporting/                          # Build Group 4: FR-REP-01 to FR-REP-03
+│   └── admin/                              # Build Group 4: Security & System Administration (FR-SEC-01 to FR-SEC-03)
 │       ├── types.ts
 │       ├── api.ts
 │       ├── mockData.ts
-│       ├── ReportingView.tsx
+│       ├── AdminView.tsx
 │       └── components/
-│           ├── FinancialReportsView.tsx
-│           ├── ClinicalCensusView.tsx
-│           └── OperationalMetricsView.tsx
+│           ├── FacilityConfigView.tsx
+│           ├── RolePermissionMatrixView.tsx
+│           ├── UserManagementView.tsx
+│           ├── UserAccountModal.tsx
+│           └── PasswordResetModal.tsx
+```
