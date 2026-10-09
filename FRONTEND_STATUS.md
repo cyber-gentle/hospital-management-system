@@ -252,14 +252,13 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
-│   └── maternity/                          # Build Group 3: Maternity & Obstetrics
+│   └── mortuary/                           # Build Group 3: Mortuary & Pathology Services (FR-MOR-01 to FR-MOR-03)
 │       ├── types.ts
 │       ├── api.ts
 │       ├── mockData.ts
-│       ├── MaternityView.tsx
+│       ├── MortuaryView.tsx
 │       └── components/
-│           ├── AncBookingModal.tsx
-│           ├── AncVisitModal.tsx
-│           ├── LaborDeliveryModal.tsx
-│           └── PostnatalCareModal.tsx
-```
+│           ├── DeceasedIntakeModal.tsx
+│           ├── ColdStorageModal.tsx
+│           ├── AutopsyLogModal.tsx
+│           └── BodyReleaseModal.tsx
