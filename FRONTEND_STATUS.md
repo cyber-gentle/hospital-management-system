@@ -252,12 +252,14 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
-│   └── emergency/                          # Build Group 3: Accident & Emergency (A&E)
+│   └── maternity/                          # Build Group 3: Maternity & Obstetrics
 │       ├── types.ts
 │       ├── api.ts
 │       ├── mockData.ts
-│       ├── EmergencyView.tsx
+│       ├── MaternityView.tsx
 │       └── components/
-│           ├── RapidTriageModal.tsx
-│           ├── EmergencyBedBoardModal.tsx
-│           └── StabilizationNotesModal.tsx
+│           ├── AncBookingModal.tsx
+│           ├── AncVisitModal.tsx
+│           ├── LaborDeliveryModal.tsx
+│           └── PostnatalCareModal.tsx
+```
