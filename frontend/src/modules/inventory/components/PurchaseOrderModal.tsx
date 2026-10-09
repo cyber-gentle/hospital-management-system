@@ -1,3 +1,4 @@
+import { DEMO_MODE } from "../../../lib/demo";
 import React, { useState } from 'react';
 import { X, FileText, Plus, Trash2, Calendar, Building, DollarSign, AlertCircle } from 'lucide-react';
 import { InventoryItem, PurchaseOrder, PurchaseOrderItem, Vendor } from '../types';
@@ -37,7 +38,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       unitPrice: catalogItems[0]?.unitCostValue || 1000,
     },
   ]);
-  const [submitImmediately, setSubmitImmediately] = useState<boolean>(true);
+  const [submitImmediately, setSubmitImmediately] = useState<boolean>(DEMO_MODE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,12 +130,12 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
         poNumber: `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
         vendorId: selectedVendor.id,
         vendorName: selectedVendor.name,
-        orderDate: new Date().toISOString(),
+        orderDate: new Date().toISOString().slice(0, 10),
         expectedDeliveryDate: expectedDate,
         items: poItems,
         totalAmount: grandTotalFormatted,
         totalAmountValue: grandTotalValue,
-        status: submitImmediately ? 'SUBMITTED_FOR_APPROVAL' : 'DRAFT',
+        status: DEMO_MODE && submitImmediately ? 'SUBMITTED_FOR_APPROVAL' : 'DRAFT',
         createdBy: 'Procurement Officer (HIMS)',
       });
       onCreated(created);

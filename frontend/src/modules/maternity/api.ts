@@ -1,3 +1,6 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import { AncProfile, AncVisit, DeliveryRecord, PncCheckup, NewbornDetails } from './types';
 import { INITIAL_ANC_PROFILES, INITIAL_DELIVERY_RECORDS, INITIAL_PNC_CHECKUPS } from './mockData';
 
@@ -8,6 +11,7 @@ const PNC_STORAGE_KEY = 'hims_maternity_pnc_v1';
 // Seed initial mock data if not already present in localStorage
 const initializeStorage = () => {
   if (typeof window === 'undefined') return;
+  try { requireDemoMode(); } catch { return; }
   if (!localStorage.getItem(ANC_STORAGE_KEY)) {
     localStorage.setItem(ANC_STORAGE_KEY, JSON.stringify(INITIAL_ANC_PROFILES));
   }
@@ -24,12 +28,14 @@ initializeStorage();
 export const maternityApi = {
   // --- FR-MAT-01: Antenatal Care (ANC) ---
   async getAncProfiles(): Promise<AncProfile[]> {
+    requireDemoMode();
     try {
-      const res = await fetch('/api/v1/maternity/anc');
+      const res = await strictModuleFetch('/api/v1/maternity/anc');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Backend unavailable or 404, fallback to localStorage
     }
     const data = localStorage.getItem(ANC_STORAGE_KEY);
@@ -37,6 +43,7 @@ export const maternityApi = {
   },
 
   async createAncBooking(payload: Omit<AncProfile, 'id' | 'currentGestationalAgeWeeks' | 'status' | 'visits'>): Promise<AncProfile> {
+    requireDemoMode();
     // Calculate gestational age in weeks from LMP
     const lmp = new Date(payload.lmpDate);
     const now = new Date();
@@ -51,7 +58,7 @@ export const maternityApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/maternity/anc/booking', {
+      const res = await strictModuleFetch('/api/v1/maternity/anc/booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newProfile)
@@ -59,7 +66,8 @@ export const maternityApi = {
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -70,6 +78,7 @@ export const maternityApi = {
   },
 
   async recordAncVisit(ancProfileId: string, visit: Omit<AncVisit, 'id' | 'visitDate'>): Promise<AncProfile> {
+    requireDemoMode();
     const profiles = await this.getAncProfiles();
     const newVisit: AncVisit = {
       ...visit,
@@ -96,6 +105,7 @@ export const maternityApi = {
   },
 
   async updateAncStatus(ancProfileId: string, status: AncProfile['status']): Promise<void> {
+    requireDemoMode();
     const profiles = await this.getAncProfiles();
     const updated = profiles.map(p => p.id === ancProfileId ? { ...p, status } : p);
     localStorage.setItem(ANC_STORAGE_KEY, JSON.stringify(updated));
@@ -103,12 +113,14 @@ export const maternityApi = {
 
   // --- FR-MAT-02: Labor & Delivery Suite ---
   async getDeliveryRecords(): Promise<DeliveryRecord[]> {
+    requireDemoMode();
     try {
-      const res = await fetch('/api/v1/maternity/deliveries');
+      const res = await strictModuleFetch('/api/v1/maternity/deliveries');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const data = localStorage.getItem(DELIVERIES_STORAGE_KEY);
@@ -116,6 +128,7 @@ export const maternityApi = {
   },
 
   async recordDelivery(payload: Omit<DeliveryRecord, 'id' | 'deliveryTime' | 'newborns'> & { newborns: Omit<NewbornDetails, 'id' | 'birthTimestamp'>[] }): Promise<DeliveryRecord> {
+    requireDemoMode();
     const deliveryTimestamp = new Date().toISOString();
     const recordId = `DEL-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -133,7 +146,7 @@ export const maternityApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/maternity/deliveries', {
+      const res = await strictModuleFetch('/api/v1/maternity/deliveries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRecord)
@@ -141,7 +154,8 @@ export const maternityApi = {
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -157,12 +171,14 @@ export const maternityApi = {
 
   // --- FR-MAT-03: Postnatal Care (PNC) ---
   async getPncCheckups(): Promise<PncCheckup[]> {
+    requireDemoMode();
     try {
-      const res = await fetch('/api/v1/maternity/pnc');
+      const res = await strictModuleFetch('/api/v1/maternity/pnc');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const data = localStorage.getItem(PNC_STORAGE_KEY);
@@ -170,6 +186,7 @@ export const maternityApi = {
   },
 
   async recordPncCheckup(checkup: Omit<PncCheckup, 'id' | 'checkupDate'>): Promise<PncCheckup> {
+    requireDemoMode();
     const newCheckup: PncCheckup = {
       ...checkup,
       id: `PNC-${Date.now()}`,
@@ -177,7 +194,7 @@ export const maternityApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/maternity/pnc', {
+      const res = await strictModuleFetch('/api/v1/maternity/pnc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCheckup)
@@ -185,7 +202,8 @@ export const maternityApi = {
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 

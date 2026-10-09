@@ -33,6 +33,7 @@ export const HrView: React.FC<HrViewProps> = ({ onBackToDashboard }) => {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [metrics, setMetrics] = useState<HRMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Tabs: 'directory' | 'roster' | 'leaves'
   const [activeTab, setActiveTab] = useState<'directory' | 'roster' | 'leaves'>('directory');
@@ -48,6 +49,7 @@ export const HrView: React.FC<HrViewProps> = ({ onBackToDashboard }) => {
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [sData, rData, lData, mData] = await Promise.all([
         hrApi.getStaff(),
@@ -59,6 +61,9 @@ export const HrView: React.FC<HrViewProps> = ({ onBackToDashboard }) => {
       setShifts(rData);
       setLeaves(lData);
       setMetrics(mData);
+    } catch (error) {
+      setStaffList([]); setShifts([]); setLeaves([]); setMetrics(null); setEditingStaff(null); setEditingShift(null);
+      setLoadError(error instanceof Error ? error.message : "Data could not be loaded");
     } finally {
       setLoading(false);
     }
@@ -133,6 +138,7 @@ export const HrView: React.FC<HrViewProps> = ({ onBackToDashboard }) => {
 
   return (
     <div className="space-y-6">
+      {loadError && <p role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">{loadError}</p>}
       {/* Top Banner & Department Overview */}
       <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-zinc-900 rounded-2xl p-6 text-white shadow-xl border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

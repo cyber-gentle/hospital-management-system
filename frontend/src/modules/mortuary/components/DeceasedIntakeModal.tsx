@@ -1,3 +1,4 @@
+import { DEMO_MODE } from "../../../lib/demo";
 import React, { useState } from 'react';
 import { X, ShieldAlert, UserPlus, HeartHandshake, CheckCircle2 } from 'lucide-react';
 import { DeceasedRecord, DeceasedOrigin, ColdStorageUnit } from '../types';
@@ -23,8 +24,8 @@ export const DeceasedIntakeModal: React.FC<DeceasedIntakeModalProps> = ({
   const [originDepartment, setOriginDepartment] = useState<DeceasedOrigin>('INPATIENT_WARD');
   const [dateOfDeath, setDateOfDeath] = useState(new Date().toISOString().slice(0, 16));
   const [causeOfDeath, setCauseOfDeath] = useState('');
-  const [certifyingDoctor, setCertifyingDoctor] = useState('Dr. A. Danbaba');
-  const [certifyingDoctorLicense, setCertifyingDoctorLicense] = useState('MDCN/64821');
+  const [certifyingDoctor, setCertifyingDoctor] = useState(DEMO_MODE ? 'Dr. A. Danbaba' : '');
+  const [certifyingDoctorLicense, setCertifyingDoctorLicense] = useState(DEMO_MODE ? 'MDCN/64821' : '');
 
   // Coroner & Police tracking
   const [isCoronerCase, setIsCoronerCase] = useState(false);
@@ -41,7 +42,7 @@ export const DeceasedIntakeModal: React.FC<DeceasedIntakeModalProps> = ({
   const [belongingsInput, setBelongingsInput] = useState('Clothing, Personal belongings');
   const [selectedUnitId, setSelectedUnitId] = useState<string>(units[0]?.id || '');
   const [selectedChamberNumber, setSelectedChamberNumber] = useState<string>('');
-  const [storageFeeDaily, setStorageFeeDaily] = useState<number>(5000);
+  const [storageFeeDaily, setStorageFeeDaily] = useState<number>(DEMO_MODE ? 5000 : 0);
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -57,7 +58,7 @@ export const DeceasedIntakeModal: React.FC<DeceasedIntakeModalProps> = ({
         ? (fullName.trim() || `Unidentified Deceased (${gender === 'MALE' ? 'John' : 'Jane'} Doe #${Math.floor(10 + Math.random() * 90)})`)
         : fullName.trim();
 
-      const finalHospitalNo = isUnidentified
+      const finalHospitalNo = !DEMO_MODE ? hospitalNumber.trim() : isUnidentified
         ? `HIMS-MOR-UNKNOWN-${Math.floor(100 + Math.random() * 900)}`
         : (hospitalNumber.trim() || `HIMS-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`);
 
@@ -87,8 +88,8 @@ export const DeceasedIntakeModal: React.FC<DeceasedIntakeModalProps> = ({
           address: nokAddress.trim(),
           nationalIdNumber: nokNIN.trim()
         },
-        assignedChamberId: selectedUnitId,
-        assignedChamberUnit: selectedChamberNumber || (availableChambers[0]?.chamberNumber ?? undefined),
+        assignedChamberId: DEMO_MODE ? selectedUnitId : undefined,
+        assignedChamberUnit: DEMO_MODE ? selectedChamberNumber || (availableChambers[0]?.chamberNumber ?? undefined) : undefined,
         belongingsDeposited: belongings,
         storageFeeDaily
       });

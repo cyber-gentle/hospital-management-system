@@ -164,7 +164,7 @@ export const BodyReleaseModal: React.FC<BodyReleaseModalProps> = ({
                   className="w-full text-xs font-bold rounded-lg border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
                 <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  Total accrued storage fee: ₦{deceased.totalAccruedStorageFee.toLocaleString()}
+                  Total accrued storage fee: ₦{deceased.totalAccruedStorageFee?.toLocaleString() ?? 'Not configured'}
                 </span>
               </div>
             </div>

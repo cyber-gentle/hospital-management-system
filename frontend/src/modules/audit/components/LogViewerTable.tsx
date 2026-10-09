@@ -189,9 +189,9 @@ export const LogViewerTable: React.FC<LogViewerTableProps> = ({
 
                   {/* Integrity */}
                   <td className="py-3 px-4 text-center whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200" title="Tamper-proof append-only seal verified">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200" title="Cryptographic verification is not configured">
                       <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                      Verified
+                      Unverified
                     </span>
                   </td>
 

@@ -1,3 +1,4 @@
+import { DEMO_MODE } from "../../../lib/demo";
 import React, { useState, useEffect } from 'react';
 import { X, Package, DollarSign, Building, AlertCircle } from 'lucide-react';
 import { InventoryCategory, InventoryItem, UnitOfMeasure, Vendor } from '../types';
@@ -32,10 +33,10 @@ export const CatalogItemModal: React.FC<CatalogItemModalProps> = ({
   const [name, setName] = useState('');
   const [category, setCategory] = useState<InventoryCategory>('PHARMACEUTICALS');
   const [unitOfMeasure, setUnitOfMeasure] = useState<UnitOfMeasure>('VIAL');
-  const [currentStock, setCurrentStock] = useState<number>(100);
+  const [currentStock, setCurrentStock] = useState<number>(DEMO_MODE ? 100 : 0);
   const [minimumReorderLevel, setMinimumReorderLevel] = useState<number>(50);
   const [bufferStockLevel, setBufferStockLevel] = useState<number>(200);
-  const [unitCostValue, setUnitCostValue] = useState<number>(1500);
+  const [unitCostValue, setUnitCostValue] = useState<number>(DEMO_MODE ? 1500 : 0);
   const [locationBin, setLocationBin] = useState('');
   const [preferredVendor, setPreferredVendor] = useState('');
   const [error, setError] = useState<string | null>(null);

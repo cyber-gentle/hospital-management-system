@@ -276,7 +276,7 @@ type Leave struct {
 }
 
 func (h *Handler) ListLeaves(c *gin.Context) {
-	operations.ListDocuments(c, h.db, `SELECT details || jsonb_build_object('id',id) FROM hr_leaves WHERE deleted_at IS NULL AND ($1='' OR details->>'department'=$1) AND ($2='' OR details->>'status'=$2) ORDER BY created_at DESC LIMIT 1000`, filter(c, "department"), filter(c, "status"))
+	operations.ListDocuments(c, h.db, `SELECT details || jsonb_build_object('id',id) FROM hr_leaves WHERE deleted_at IS NULL AND ($1='' OR details->>'department'=$1) AND ($2='' OR details->>'status'=$2) AND ($3='' OR staff_id::text=$3) ORDER BY created_at DESC LIMIT 1000`, filter(c, "department"), filter(c, "status"), c.Query("staffId"))
 }
 func (h *Handler) CreateLeave(c *gin.Context) {
 	var record Leave

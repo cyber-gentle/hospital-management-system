@@ -1,3 +1,6 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import {
   ClinicalCensusData,
   ExecutiveDashboardSummary,
@@ -17,6 +20,7 @@ const STORAGE_KEY_OPERATIONAL = 'hims_rep_operational_v1';
 
 class ReportingApi {
   private initStorage(): void {
+    requireDemoMode();
     if (!localStorage.getItem(STORAGE_KEY_FINANCIAL)) {
       localStorage.setItem(STORAGE_KEY_FINANCIAL, JSON.stringify(INITIAL_FINANCIAL_REPORT));
     }
@@ -30,11 +34,13 @@ class ReportingApi {
 
   // --- FR-REP-01: Financial Reports ---
   async getFinancialReport(period: ReportingPeriod = 'THIS_MONTH'): Promise<FinancialReportData> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch(`/api/v1/reporting/dashboards/financial?period=${period}`);
+      const res = await strictModuleFetch(`/api/v1/reporting/dashboards/financial?period=${period}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -85,11 +91,13 @@ class ReportingApi {
 
   // --- FR-REP-02: Clinical Census & Morbidity ---
   async getClinicalCensus(period: ReportingPeriod = 'THIS_MONTH'): Promise<ClinicalCensusData> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch(`/api/v1/reporting/dashboards/clinical?period=${period}`);
+      const res = await strictModuleFetch(`/api/v1/reporting/dashboards/clinical?period=${period}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -103,11 +111,13 @@ class ReportingApi {
 
   // --- FR-REP-03: Operational Performance Metrics ---
   async getOperationalMetrics(period: ReportingPeriod = 'THIS_MONTH'): Promise<OperationalMetricsData> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch(`/api/v1/reporting/dashboards/operational?period=${period}`);
+      const res = await strictModuleFetch(`/api/v1/reporting/dashboards/operational?period=${period}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -121,6 +131,7 @@ class ReportingApi {
 
   // --- Executive Dashboard Aggregation ---
   async getExecutiveSummary(period: ReportingPeriod = 'THIS_MONTH'): Promise<ExecutiveDashboardSummary> {
+    requireDemoMode();
     const [financials, clinicalCensus, operationalMetrics] = await Promise.all([
       this.getFinancialReport(period),
       this.getClinicalCensus(period),

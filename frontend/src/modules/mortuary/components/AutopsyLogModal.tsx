@@ -1,3 +1,4 @@
+import { DEMO_MODE } from "../../../lib/demo";
 import React, { useState } from 'react';
 import { X, FileText, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { DeceasedRecord, AutopsyLog } from '../types';
@@ -15,13 +16,13 @@ export const AutopsyLogModal: React.FC<AutopsyLogModalProps> = ({
   deceased,
   onSubmit
 }) => {
-  const [pathologistName, setPathologistName] = useState('Prof. E. B. Adeyemi');
-  const [pathologistLicense, setPathologistLicense] = useState('FMCPath/9821');
-  const [externalFindings, setExternalFindings] = useState('Well-nourished deceased. No evidence of defensive wounds. Lividity fixed posteriorly.');
+  const [pathologistName, setPathologistName] = useState(DEMO_MODE ? 'Prof. E. B. Adeyemi' : '');
+  const [pathologistLicense, setPathologistLicense] = useState(DEMO_MODE ? 'FMCPath/9821' : '');
+  const [externalFindings, setExternalFindings] = useState(DEMO_MODE ? 'Well-nourished deceased. No evidence of defensive wounds. Lividity fixed posteriorly.' : '');
   const [internalFindings, setInternalFindings] = useState('');
   const [definitiveCauseOfDeath, setDefinitiveCauseOfDeath] = useState('');
-  const [toxicologyInput, setToxicologyInput] = useState('Femoral blood, Vitreous humor');
-  const [coronerVerdict, setCoronerVerdict] = useState('Post-mortem examination concludes natural cause. Death certificate endorsed.');
+  const [toxicologyInput, setToxicologyInput] = useState(DEMO_MODE ? 'Femoral blood, Vitreous humor' : '');
+  const [coronerVerdict, setCoronerVerdict] = useState(DEMO_MODE ? 'Post-mortem examination concludes natural cause. Death certificate endorsed.' : '');
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;

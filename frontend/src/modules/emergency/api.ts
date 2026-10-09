@@ -1,3 +1,6 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import { EmergencyPatient, EmergencyBay, StabilizationNote, CrashMedicationEntry } from './types';
 import { INITIAL_EMERGENCY_PATIENTS, INITIAL_EMERGENCY_BAYS, INITIAL_STABILIZATION_NOTES } from './mockData';
 
@@ -8,6 +11,7 @@ const NOTES_STORAGE_KEY = 'hims_emergency_notes_v1';
 // Seed initial mock data if not already present in localStorage
 const initializeStorage = () => {
   if (typeof window === 'undefined') return;
+  try { requireDemoMode(); } catch { return; }
   if (!localStorage.getItem(PATIENTS_STORAGE_KEY)) {
     localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(INITIAL_EMERGENCY_PATIENTS));
   }
@@ -24,12 +28,14 @@ initializeStorage();
 export const emergencyApi = {
   // Fetch active A&E patients
   async getEmergencyPatients(): Promise<EmergencyPatient[]> {
+    requireDemoMode();
     try {
-      const res = await fetch('/api/v1/emergency/patients');
+      const res = await strictModuleFetch('/api/v1/emergency/patients');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Backend unavailable or 404, fallback to localStorage
     }
     const data = localStorage.getItem(PATIENTS_STORAGE_KEY);
@@ -38,6 +44,7 @@ export const emergencyApi = {
 
   // Rapid Triage Intake (FR-AE-01)
   async createEmergencyTriage(payload: Omit<EmergencyPatient, 'id' | 'updatedAt' | 'zeroDepositWaived' | 'medicationsAdministered'>): Promise<EmergencyPatient> {
+    requireDemoMode();
     const newPatient: EmergencyPatient = {
       ...payload,
       id: `EP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
@@ -47,7 +54,7 @@ export const emergencyApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/emergency/triage', {
+      const res = await strictModuleFetch('/api/v1/emergency/triage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newPatient)
@@ -55,7 +62,8 @@ export const emergencyApi = {
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback to localStorage
     }
 
@@ -73,12 +81,14 @@ export const emergencyApi = {
 
   // Fetch Bay & Bed Occupancy Board (FR-AE-02)
   async getEmergencyBays(): Promise<EmergencyBay[]> {
+    requireDemoMode();
     try {
-      const res = await fetch('/api/v1/emergency/bays');
+      const res = await strictModuleFetch('/api/v1/emergency/bays');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const data = localStorage.getItem(BAYS_STORAGE_KEY);
@@ -87,6 +97,7 @@ export const emergencyApi = {
 
   // Assign or transfer patient to a specific Bay bed (FR-AE-02)
   async assignPatientBed(patientId: string, bayId: string, bedNumber: string): Promise<EmergencyBay[]> {
+    requireDemoMode();
     const bays = await this.getEmergencyBays();
     const patients = await this.getEmergencyPatients();
     const patient = patients.find(p => p.id === patientId);
@@ -150,6 +161,7 @@ export const emergencyApi = {
 
   // Release bed when patient is transferred or discharged
   async releasePatientBed(patientId: string): Promise<EmergencyBay[]> {
+    requireDemoMode();
     const bays = await this.getEmergencyBays();
     const updatedBays = bays.map(bay => {
       const updatedBeds = bay.beds.map(bed => {
@@ -173,6 +185,7 @@ export const emergencyApi = {
 
   // Record Crash Medication in real time (FR-AE-03)
   async recordCrashMedication(patientId: string, med: Omit<CrashMedicationEntry, 'id'>): Promise<EmergencyPatient> {
+    requireDemoMode();
     const patients = await this.getEmergencyPatients();
     const newMed: CrashMedicationEntry = {
       ...med,
@@ -199,12 +212,14 @@ export const emergencyApi = {
 
   // Fetch stabilization and resuscitation notes (FR-AE-03)
   async getStabilizationNotes(patientId?: string): Promise<StabilizationNote[]> {
+    requireDemoMode();
     try {
-      const res = await fetch(`/api/v1/emergency/notes${patientId ? `?patientId=${patientId}` : ''}`);
+      const res = await strictModuleFetch(`/api/v1/emergency/notes${patientId ? `?patientId=${patientId}` : ''}`);
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -218,6 +233,7 @@ export const emergencyApi = {
 
   // Save Stabilization Note & Final Disposition Transfer (FR-AE-03)
   async addStabilizationNote(payload: Omit<StabilizationNote, 'id' | 'recordedAt'>): Promise<StabilizationNote> {
+    requireDemoMode();
     const newNote: StabilizationNote = {
       ...payload,
       id: `NOTE-AE-${Math.floor(100 + Math.random() * 900)}`,
@@ -225,7 +241,7 @@ export const emergencyApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/emergency/notes', {
+      const res = await strictModuleFetch('/api/v1/emergency/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newNote)
@@ -233,7 +249,8 @@ export const emergencyApi = {
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 

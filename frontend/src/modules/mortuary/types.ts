@@ -45,8 +45,9 @@ export interface DeceasedRecord {
   status: MortuaryStatus;
   belongingsDeposited: string[];
   storageFeeDaily: number;
-  daysInStorage: number;
-  totalAccruedStorageFee: number;
+  daysInStorage: number | null;
+  storageBillingStatus?: 'NOT_CONFIGURED';
+  totalAccruedStorageFee: number | null;
   financialClearancePaid: boolean;
   autopsyId?: string;
   releaseId?: string;

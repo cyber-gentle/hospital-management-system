@@ -37,6 +37,8 @@ export const InventoryView: React.FC = () => {
   const [metrics, setMetrics] = useState<InventoryMetrics | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -47,6 +49,7 @@ export const InventoryView: React.FC = () => {
 
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const [itemList, vendorList, poList, grnList, issuanceList, metricData] = await Promise.all([
         inventoryApi.getItems(),
@@ -63,7 +66,8 @@ export const InventoryView: React.FC = () => {
       setIssuances(issuanceList);
       setMetrics(metricData);
     } catch (err) {
-      console.error('Failed to load inventory data', err);
+      setItems([]); setVendors([]); setPos([]); setGrns([]); setIssuances([]); setMetrics(null);
+      setLoadError(err instanceof Error ? err.message : 'Inventory data could not be loaded');
     } finally {
       setIsLoading(false);
     }
@@ -106,6 +110,7 @@ export const InventoryView: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {loadError && <p role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">{loadError}</p>}
       {/* Toast alert notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 border border-emerald-500/40 text-emerald-400 rounded-xl shadow-2xl animate-fade-in text-sm">

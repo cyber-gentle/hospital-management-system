@@ -1,3 +1,8 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { DEMO_MODE } from "../../lib/demo";
+import { apiRequest } from "../../lib/api";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import {
   AuditLogEntry,
   AuditAnomalyException,
@@ -12,6 +17,7 @@ const STORAGE_KEY_EXCEPTIONS = 'hims_audit_exceptions_v1';
 
 class AuditApi {
   private initStorage(): void {
+    requireDemoMode();
     if (!localStorage.getItem(STORAGE_KEY_LOGS)) {
       localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(INITIAL_AUDIT_LOGS));
     }
@@ -25,7 +31,8 @@ class AuditApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_LOGS);
       return data ? JSON.parse(data) : INITIAL_AUDIT_LOGS;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_AUDIT_LOGS;
     }
   }
@@ -35,7 +42,8 @@ class AuditApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_EXCEPTIONS);
       return data ? JSON.parse(data) : INITIAL_ANOMALIES;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_ANOMALIES;
     }
   }
@@ -49,16 +57,21 @@ class AuditApi {
       const queryParams = new URLSearchParams();
       if (filters?.service && filters.service !== 'ALL') queryParams.append('service', filters.service);
       if (filters?.module) queryParams.append('module', filters.module);
-      if (filters?.userRole) queryParams.append('userRole', filters.userRole);
+      if (filters?.userRole && filters.userRole !== 'ALL') queryParams.append('userRole', filters.userRole);
       if (filters?.status && filters.status !== 'ALL') queryParams.append('status', filters.status);
       if (filters?.searchQuery) queryParams.append('q', filters.searchQuery);
+      if (filters?.startDate) queryParams.append('startDate', filters.startDate);
+      if (filters?.endDate) queryParams.append('endDate', filters.endDate);
+      if (filters?.onlyAnomalies) queryParams.append('onlyAnomalies', 'true');
+      if (filters?.actionCategory && filters.actionCategory !== 'ALL') queryParams.append('actionCategory', filters.actionCategory);
 
-      const res = await fetch(`/api/v1/audit/logs?${queryParams.toString()}`);
+      const res = await strictModuleFetch(`/api/v1/audit/logs?${queryParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
         return data;
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fall back to local storage
     }
 
@@ -123,11 +136,12 @@ class AuditApi {
 
   async getAuditLogById(id: string): Promise<AuditLogEntry | null> {
     try {
-      const res = await fetch(`/api/v1/audit/logs/${id}`);
+      const res = await strictModuleFetch(`/api/v1/audit/logs/${id}`);
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const logs = this.getStoredLogs();
@@ -136,11 +150,12 @@ class AuditApi {
 
   async getAnomalyExceptions(): Promise<AuditAnomalyException[]> {
     try {
-      const res = await fetch('/api/v1/audit/exceptions');
+      const res = await strictModuleFetch('/api/v1/audit/exceptions');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     return this.getStoredExceptions();
@@ -153,7 +168,7 @@ class AuditApi {
     auditorName = 'Auditor In-Charge'
   ): Promise<AuditAnomalyException> {
     try {
-      const res = await fetch(`/api/v1/audit/exceptions/${exceptionId}`, {
+      const res = await strictModuleFetch(`/api/v1/audit/exceptions/${exceptionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, notes, auditorName })
@@ -161,7 +176,8 @@ class AuditApi {
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -186,19 +202,23 @@ class AuditApi {
   }
 
   async verifyAuditTamperSeal(logId: string): Promise<{ valid: boolean; hash: string; verifiedAt: string }> {
+    if (!DEMO_MODE) return apiRequest(`/audit/logs/${encodeURIComponent(logId)}/verify`);
+    requireDemoMode();
     const logs = this.getStoredLogs();
     const log = logs.find(l => l.id === logId);
-    const hash = log?.tamperSealHash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    if (!log) throw new Error('Audit log not found');
+    const hash = log.tamperSealHash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
     // Cryptographic audit chain verification check
     return {
-      valid: true,
+      valid: false,
       hash,
       verifiedAt: new Date().toISOString()
     };
   }
 
   async getAuditMetrics(): Promise<AuditMetrics> {
+    if (!DEMO_MODE) return apiRequest<AuditMetrics>("/audit/metrics");
     const logs = this.getStoredLogs();
     const exceptions = this.getStoredExceptions();
 
@@ -215,7 +235,7 @@ class AuditApi {
       failuresCount,
       activeAnomalies,
       criticalExceptions,
-      integrityStatus: 'VERIFIED'
+      integrityStatus: 'UNAVAILABLE'
     };
   }
 
@@ -243,7 +263,11 @@ class AuditApi {
       `"${l.ipAddress}"`
     ]);
 
-    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csvCell = (value: string): string => {
+      const safe = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
+    return [headers.join(','), ...rows.map(r => r.map(value => csvCell(value.slice(1, -1))).join(','))].join('\n');
   }
 }
 

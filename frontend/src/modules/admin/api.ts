@@ -1,3 +1,6 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import {
   GlobalSystemConfig,
   RolePermissionsMatrix,
@@ -17,6 +20,7 @@ const STORAGE_KEY_USERS = 'hims_admin_users_v1';
 
 class AdminApi {
   private initStorage(): void {
+    requireDemoMode();
     if (!localStorage.getItem(STORAGE_KEY_CONFIG)) {
       localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(INITIAL_SYSTEM_CONFIG));
     }
@@ -31,11 +35,13 @@ class AdminApi {
   // --- Configuration ---
 
   async getConfig(): Promise<GlobalSystemConfig> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch('/api/v1/admin/config');
+      const res = await strictModuleFetch('/api/v1/admin/config');
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -44,15 +50,17 @@ class AdminApi {
   }
 
   async updateConfig(updates: Partial<GlobalSystemConfig>): Promise<GlobalSystemConfig> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch('/api/v1/admin/config', {
+      const res = await strictModuleFetch('/api/v1/admin/config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -77,11 +85,13 @@ class AdminApi {
   // --- RBAC Roles & Permissions ---
 
   async getRoleMatrices(): Promise<RolePermissionsMatrix[]> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch('/api/v1/admin/roles');
+      const res = await strictModuleFetch('/api/v1/admin/roles');
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -93,15 +103,17 @@ class AdminApi {
     role: UserRole,
     permissions: string[]
   ): Promise<RolePermissionsMatrix> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch(`/api/v1/admin/roles/${role}`, {
+      const res = await strictModuleFetch(`/api/v1/admin/roles/${role}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ permissions }),
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -121,15 +133,17 @@ class AdminApi {
     department?: string;
     search?: string;
   }): Promise<UserAccount[]> {
+    requireDemoMode();
     this.initStorage();
     try {
       const q = new URLSearchParams();
       if (params?.role && params.role !== 'ALL') q.append('role', params.role);
       if (params?.search) q.append('search', params.search);
 
-      const res = await fetch(`/api/v1/admin/users?${q.toString()}`);
+      const res = await strictModuleFetch(`/api/v1/admin/users?${q.toString()}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -161,15 +175,17 @@ class AdminApi {
   async createUser(
     user: Omit<UserAccount, 'id' | 'failedLoginAttempts' | 'createdAt' | 'updatedAt'>
   ): Promise<UserAccount> {
+    requireDemoMode();
     this.initStorage();
     try {
-      const res = await fetch('/api/v1/admin/users', {
+      const res = await strictModuleFetch('/api/v1/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -189,6 +205,7 @@ class AdminApi {
   }
 
   async updateUser(id: string, updates: Partial<UserAccount>): Promise<UserAccount> {
+    requireDemoMode();
     this.initStorage();
     const data = localStorage.getItem(STORAGE_KEY_USERS);
     const users: UserAccount[] = data ? JSON.parse(data) : INITIAL_USER_ACCOUNTS;
@@ -206,6 +223,7 @@ class AdminApi {
   }
 
   async toggleUserLock(id: string, newStatus: 'ACTIVE' | 'LOCKED'): Promise<UserAccount> {
+    requireDemoMode();
     return this.updateUser(id, {
       status: newStatus,
       failedLoginAttempts: newStatus === 'ACTIVE' ? 0 : 5,
@@ -213,6 +231,7 @@ class AdminApi {
   }
 
   async resetPassword(id: string): Promise<{ temporaryPassword: string }> {
+    requireDemoMode();
     this.initStorage();
     const tempPass = `NSTH-${Math.floor(100000 + Math.random() * 900000)}#`;
     await this.updateUser(id, {
@@ -225,6 +244,7 @@ class AdminApi {
   // --- Metrics ---
 
   async getSecurityMetrics(): Promise<SecurityMetrics> {
+    requireDemoMode();
     const users = await this.getUsers();
     const roles = await this.getRoleMatrices();
 

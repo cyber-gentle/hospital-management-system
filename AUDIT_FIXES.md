@@ -114,3 +114,9 @@ real Go authorization denial, real audit-key rejection and a successful audit
 write, then inspects PostgreSQL to prove denied/failed attempts changed no module
 data. The fresh database uses repository migrations exclusively. Existing bundle
 size and Python deprecation warnings remain non-fatal. Test data is synthetic.
+
+## PR integration remediation (2026-10-09)
+
+Reviewed all 12 proposals #5–#16, retained original commit ancestry, and corrected common CI regressions. Added atomic audited Go foundations for Mortuary, Audit, HR and Inventory, credentialed frontend access, no production browser success after rejection, honest unavailable audit verification, nullable unconfigured mortuary accrual, and synthetic stock receipt/issuance regressions. Policy-dependent writes remain audited 501 responses. Seven incomplete screens remain explicit demo previews; merging their source does not complete hospital workflows.
+
+Verification: full PostgreSQL-backed Go race suite, Go vet, exact-money/operations denial tests, 54 Python tests including real Go calls, 28 frontend regressions and strict production build. See PR_MERGE_AUDIT.md and BACKEND_OPERATIONS_ROUTES.md for scope, original heads, API states and outstanding work. User design-reference files and personal .gitignore edits are excluded.

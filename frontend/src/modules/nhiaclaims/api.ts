@@ -1,3 +1,4 @@
+import { requireDemoMode } from "../../lib/demo";
 import { HmoProvider, NhiaClaim, Tariff, EligibilityResult } from "./types";
 import { mockProviders, mockClaims, mockTariffs } from "./mockData";
 import { DEMO_MODE } from "../../lib/demo";
@@ -6,6 +7,7 @@ const API_BASE = "/api/v1/nhia";
 
 export const nhiaApi = {
   getProviders: async (): Promise<HmoProvider[]> => {
+    requireDemoMode();
     if (DEMO_MODE) return [...mockProviders];
     const res = await fetch(`${API_BASE}/providers`);
     if (!res.ok) throw new Error("Failed to fetch providers");
@@ -13,6 +15,7 @@ export const nhiaApi = {
   },
   
   getClaims: async (): Promise<NhiaClaim[]> => {
+    requireDemoMode();
     if (DEMO_MODE) return [...mockClaims];
     const res = await fetch(`${API_BASE}/claims`);
     if (!res.ok) throw new Error("Failed to fetch claims");
@@ -20,6 +23,7 @@ export const nhiaApi = {
   },
 
   getTariffs: async (): Promise<Tariff[]> => {
+    requireDemoMode();
     if (DEMO_MODE) return [...mockTariffs];
     const res = await fetch(`${API_BASE}/tariffs`);
     if (!res.ok) throw new Error("Failed to fetch tariffs");
@@ -27,6 +31,7 @@ export const nhiaApi = {
   },
 
   checkEligibility: async (nhiaNumber: string): Promise<EligibilityResult> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       // Simulate network delay
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -61,6 +66,7 @@ export const nhiaApi = {
   },
 
   submitClaim: async (data: Partial<NhiaClaim>): Promise<NhiaClaim> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       const newClaim: NhiaClaim = {

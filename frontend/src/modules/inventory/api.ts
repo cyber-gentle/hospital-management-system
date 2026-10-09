@@ -1,3 +1,8 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { DEMO_MODE } from "../../lib/demo";
+import { apiRequest } from "../../lib/api";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import {
   InventoryItem,
   Vendor,
@@ -23,6 +28,7 @@ const STORAGE_KEY_ISSUANCES = 'hims_inv_issuances_v1';
 
 class InventoryApi {
   private initStorage(): void {
+    requireDemoMode();
     if (!localStorage.getItem(STORAGE_KEY_ITEMS)) {
       localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(INITIAL_INVENTORY_ITEMS));
     }
@@ -46,7 +52,8 @@ class InventoryApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_ITEMS);
       return data ? JSON.parse(data) : INITIAL_INVENTORY_ITEMS;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_INVENTORY_ITEMS;
     }
   }
@@ -61,7 +68,8 @@ class InventoryApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_VENDORS);
       return data ? JSON.parse(data) : INITIAL_VENDORS;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_VENDORS;
     }
   }
@@ -72,7 +80,8 @@ class InventoryApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_POS);
       return data ? JSON.parse(data) : INITIAL_PURCHASE_ORDERS;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_PURCHASE_ORDERS;
     }
   }
@@ -87,7 +96,8 @@ class InventoryApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_GRNS);
       return data ? JSON.parse(data) : INITIAL_GRNS;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_GRNS;
     }
   }
@@ -102,7 +112,8 @@ class InventoryApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_ISSUANCES);
       return data ? JSON.parse(data) : INITIAL_ISSUANCES;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_ISSUANCES;
     }
   }
@@ -124,9 +135,10 @@ class InventoryApi {
       if (params?.status && params.status !== 'ALL') q.append('status', params.status);
       if (params?.search) q.append('search', params.search);
 
-      const res = await fetch(`/api/v1/inventory/items?${q.toString()}`);
+      const res = await strictModuleFetch(`/api/v1/inventory/items?${q.toString()}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -156,13 +168,14 @@ class InventoryApi {
     item: Omit<InventoryItem, 'id' | 'status' | 'lastRestocked'>
   ): Promise<InventoryItem> {
     try {
-      const res = await fetch('/api/v1/inventory/items', {
+      const res = await strictModuleFetch('/api/v1/inventory/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item)
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -185,7 +198,17 @@ class InventoryApi {
     return newItem;
   }
 
+  async adjustStock(id: string, quantity: number, reason: string): Promise<InventoryItem> {
+    if (!Number.isSafeInteger(quantity) || quantity === 0 || !reason.trim()) throw new Error('Adjustment needs a nonzero integer quantity and reason');
+    if (!DEMO_MODE) return apiRequest<InventoryItem>(`/inventory/items/${encodeURIComponent(id)}/adjust`, {method:'POST',body:JSON.stringify({quantity,reason})});
+    const current = this.getStoredItems().find(item => item.id === id);
+    if (!current) throw new Error('Item not found');
+    return this.updateItemStock(id, current.currentStock + quantity);
+  }
+
   async updateItemStock(id: string, newStock: number): Promise<InventoryItem> {
+    requireDemoMode();
+    if (!Number.isSafeInteger(newStock) || newStock < 0) throw new Error("Stock must be a nonnegative integer");
     const items = this.getStoredItems();
     const index = items.findIndex((i) => i.id === id);
     if (index === -1) throw new Error(`Item ${id} not found`);
@@ -210,6 +233,7 @@ class InventoryApi {
   }
 
   async updateItem(id: string, updates: Partial<InventoryItem>): Promise<InventoryItem> {
+    if (!DEMO_MODE) return apiRequest<InventoryItem>(`/inventory/items/${encodeURIComponent(id)}`, {method:"PATCH",body:JSON.stringify(updates)});
     const items = this.getStoredItems();
     const index = items.findIndex((i) => i.id === id);
     if (index === -1) throw new Error(`Item ${id} not found`);
@@ -232,6 +256,7 @@ class InventoryApi {
   // --- Vendors ---
 
   async getVendors(): Promise<Vendor[]> {
+    if (!DEMO_MODE) return apiRequest<Vendor[]>("/inventory/vendors");
     return this.getStoredVendors();
   }
 
@@ -242,9 +267,10 @@ class InventoryApi {
       const q = new URLSearchParams();
       if (params?.status && params.status !== 'ALL') q.append('status', params.status);
 
-      const res = await fetch(`/api/v1/inventory/pos?${q.toString()}`);
+      const res = await strictModuleFetch(`/api/v1/inventory/pos?${q.toString()}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -258,6 +284,7 @@ class InventoryApi {
   async createPurchaseOrder(
     po: Omit<PurchaseOrder, 'id' | 'createdAt'>
   ): Promise<PurchaseOrder> {
+    if (!DEMO_MODE) return apiRequest<PurchaseOrder>("/inventory/pos", {method:"POST",body:JSON.stringify(po)});
     const pos = this.getStoredPOs();
     const newPO: PurchaseOrder = {
       ...po,
@@ -275,6 +302,7 @@ class InventoryApi {
     approvedBy?: string,
     approvalNotes?: string
   ): Promise<PurchaseOrder> {
+    if (!DEMO_MODE) return apiRequest<PurchaseOrder>(`/inventory/pos/${encodeURIComponent(id)}/status`, {method:"PATCH",body:JSON.stringify({status,approvedBy,approvalNotes})});
     const pos = this.getStoredPOs();
     const index = pos.findIndex((p) => p.id === id);
     if (index === -1) throw new Error(`Purchase Order ${id} not found`);
@@ -293,13 +321,27 @@ class InventoryApi {
   // --- Goods Receipt Notes ---
 
   async getGoodsReceiptNotes(): Promise<GoodsReceiptNote[]> {
+    if (!DEMO_MODE) return apiRequest<GoodsReceiptNote[]>("/inventory/grns");
     return this.getStoredGRNs();
   }
 
   async createGoodsReceiptNote(
     grn: Omit<GoodsReceiptNote, 'id'>
   ): Promise<GoodsReceiptNote> {
+    if (!DEMO_MODE) return apiRequest<GoodsReceiptNote>("/inventory/grns", {method:"POST",body:JSON.stringify(grn)});
     const grns = this.getStoredGRNs();
+    if (grns.some(existing => existing.grnNumber === grn.grnNumber)) throw new Error('Receipt already recorded');
+    if (!grn.receivedItems.length || grn.receivedItems.some(line => !Number.isSafeInteger(line.quantityReceived) || line.quantityReceived < 0)) throw new Error('Invalid receipt quantity');
+    const order = this.getStoredPOs().find(po => po.id === grn.poId);
+    if (!order) throw new Error('Purchase order not found');
+    const catalog = this.getStoredItems();
+    const received = new Set<string>();
+    for (const line of grn.receivedItems) {
+      const ordered = order.items.find(item => item.itemId === line.itemId);
+      const previous = grns.filter(existing => existing.poId === grn.poId && existing.status === 'INSPECTED_ACCEPTED').flatMap(existing => existing.receivedItems).filter(item => item.itemId === line.itemId && item.inspectionPass).reduce((sum,item) => sum + item.quantityReceived,0);
+      if (received.has(line.itemId) || !ordered || !catalog.some(item => item.id === line.itemId) || line.quantityReceived + previous > ordered.quantityOrdered) throw new Error('Invalid or excessive receipt quantity');
+      received.add(line.itemId);
+    }
     const newGRN: GoodsReceiptNote = {
       ...grn,
       id: `GRN-2026-${String(grns.length + 43).padStart(4, '0')}`
@@ -320,7 +362,11 @@ class InventoryApi {
     }
 
     // Mark PO as fulfilled or partially received
-    await this.updatePOStatus(grn.poId, 'FULFILLED', undefined, 'Delivered and accepted via ' + newGRN.grnNumber);
+    if (grn.status === 'INSPECTED_ACCEPTED') {
+      const accepted = [newGRN, ...grns.filter(existing => existing.id !== newGRN.id)].filter(receipt => receipt.poId === grn.poId && receipt.status === 'INSPECTED_ACCEPTED');
+      const complete = order.items.every(line => accepted.flatMap(receipt => receipt.receivedItems).filter(item => item.itemId === line.itemId && item.inspectionPass).reduce((sum,item) => sum + item.quantityReceived,0) >= line.quantityOrdered);
+      await this.updatePOStatus(grn.poId, complete ? 'FULFILLED' : 'PARTIALLY_RECEIVED', undefined, 'Receipt ' + newGRN.grnNumber);
+    }
 
     return newGRN;
   }
@@ -328,12 +374,22 @@ class InventoryApi {
   // --- Substore Issuance ---
 
   async getSubstoreIssuances(): Promise<SubstoreIssuance[]> {
+    if (!DEMO_MODE) return apiRequest<SubstoreIssuance[]>("/inventory/issuances");
     return this.getStoredIssuances();
   }
 
   async createSubstoreIssuance(
     issuance: Omit<SubstoreIssuance, 'id'>
   ): Promise<SubstoreIssuance> {
+    if (!DEMO_MODE) return apiRequest<SubstoreIssuance>("/inventory/issuances", {method:"POST",body:JSON.stringify(issuance)});
+    const catalog = this.getStoredItems();
+    const seen = new Set<string>();
+    if (!issuance.items.length) throw new Error('At least one item is required');
+    for (const line of issuance.items) {
+      const item = catalog.find(i => i.id === line.itemId);
+      if (seen.has(line.itemId) || !item || !Number.isSafeInteger(line.quantityIssued) || line.quantityIssued <= 0 || line.quantityIssued > item.currentStock) throw new Error('Invalid issuance quantity or insufficient stock');
+      seen.add(line.itemId);
+    }
     const issuances = this.getStoredIssuances();
     const newIssuance: SubstoreIssuance = {
       ...issuance,
@@ -346,7 +402,7 @@ class InventoryApi {
     for (const item of issuance.items) {
       const stored = this.getStoredItems().find((i) => i.id === item.itemId);
       if (stored) {
-        const remaining = Math.max(0, stored.currentStock - item.quantityIssued);
+        const remaining = stored.currentStock - item.quantityIssued;
         await this.updateItemStock(item.itemId, remaining);
       }
     }
@@ -357,6 +413,7 @@ class InventoryApi {
   // --- Metrics ---
 
   async getInventoryMetrics(): Promise<InventoryMetrics> {
+    if (!DEMO_MODE) return apiRequest<InventoryMetrics>("/inventory/metrics");
     const items = this.getStoredItems();
     const pos = this.getStoredPOs();
     const issuances = this.getStoredIssuances();

@@ -100,14 +100,14 @@ export const LogDetailsDrawer: React.FC<LogDetailsDrawerProps> = ({
                 Cryptographic Integrity Verification
               </div>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                Seal Valid &amp; Verified
+                Verification unavailable
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              SHA-256 digest guaranteed by Go Core audit writer transaction:
+              Cryptographic verification is not configured. Any displayed digest is unverified:
             </p>
             <div className="font-mono text-[11px] bg-white p-2 rounded border border-slate-200 text-slate-700 break-all select-all">
-              {log.tamperSealHash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}
+              {log.tamperSealHash || 'No digest recorded'}
             </div>
           </div>
 

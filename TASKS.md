@@ -1,10 +1,6 @@
 # TASKS.md — Step-by-Step Checklist
 ## Hospital Information Management System (HIMS)
 
-> **IMPORTANT:** The current active focus is **strictly on the frontend**. 
-> Please refer to `frontend_status.md` for current progress and active tasks. 
-> Do not transition to backend work without explicit confirmation.
-
 > Linear roadmap broken down from `PRD.md` / `docs/08_ROADMAP_PHASES.md`.
 > Work top to bottom within each section. Check off `[x]` as completed.
 > Add newly discovered tasks under the relevant section rather than doing
@@ -317,7 +313,7 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 `docs/03_SRS.md` §3 for the module list to expand from)*
 
 - [x] Expand `docs/03_SRS.md` §3 into detailed FR list for these 9 modules
-- [x] **Theatre implementation**
+- [ ] **Theatre implementation**
   - [x] Schema / Migrations for theatre scheduling & logs
   - [x] FR-THE-01: Surgery Scheduling API
   - [x] FR-THE-02: Pre-op Checklist API
@@ -405,12 +401,12 @@ decision) rather than resolving it silently.
 
 ### Pre-merge review follow-ups (incoming Mortuary, Audit, HR, Inventory)
 
-- [ ] Restrict incoming module browser storage to explicit demo mode; attach backend credentials and preserve authorization/validation rejection. Reproduced production-mode HTTP 401 returning synthetic Audit, HR and Mortuary records. Inventory also has unrestricted browser-only mutations.
-- [ ] Replace Audit's unconditional `valid: true` tamper-seal result and `integrityStatus: VERIFIED` with an authoritative verification result or an explicit unavailable state. A nonexistent log currently passes verification.
-- [ ] Validate Inventory issuance quantities and available stock before saving; preserve pending/partial/rejected goods receipt outcomes and prevent duplicate stock posting. Reproduced quantity -1 increasing stock by 1; source marks every goods receipt PO fulfilled regardless of acceptance or completeness.
-- [ ] Enforce Mortuary release eligibility on the backend; the current browser fallback sets financial clearance true during release without checking authoritative payment or coroner clearance.
-- [ ] Resolve combined App.tsx/FRONTEND_STATUS.md conflicts while retaining all module routes; reconcile fix/audit-integration-routing's nursing handler/model conflicts with current safety fixes. Preserve original commits/authors and include the outstanding local remediation patch.
-- [ ] Add module business-logic and production-rejection tests before merge. All four incoming branches build individually with the installed frontend dependencies; this does not establish backend readiness. Go currently registers no backend routes for these four modules.
+- [x] Restrict incoming module browser storage to explicit demo mode; attach backend credentials and preserve authorization/validation rejection. Reproduced production-mode HTTP 401 returning synthetic Audit, HR and Mortuary records. Inventory also has unrestricted browser-only mutations.
+- [x] Replace Audit's unconditional `valid: true` tamper-seal result and `integrityStatus: VERIFIED` with an authoritative verification result or an explicit unavailable state. A nonexistent log currently passes verification.
+- [x] Validate Inventory issuance quantities and available stock before saving; preserve pending/partial/rejected goods receipt outcomes and prevent duplicate stock posting. Reproduced quantity -1 increasing stock by 1; source marks every goods receipt PO fulfilled regardless of acceptance or completeness.
+- [x] Enforce Mortuary release eligibility on the backend; production release is blocked until authoritative payment/coroner policy is configured; the synthetic fallback no longer fabricates payment clearance.
+- [ ] Reconcile fix/audit-integration-routing's nursing handler/model conflicts with current safety fixes if that separate branch is selected for integration. The 12 open PR dashboard conflicts are resolved and all original histories retained.
+- [x] Add module business-logic and production-rejection tests before merge. Added verified Go routes and production rejection coverage for these four modules. Hospital-policy actions remain disabled, as documented in the 2026-10-09 review.
 
 - [x] Restore frontend validation rejection, UTC period selection, ledger-based negative-balance coverage, and payment-date reconciliation (FR-GL-04, FR-GL-05). Default reports use the current UTC month; historical monthly, quarterly and calendar-year selections retain their boundaries.
 - [x] Add Go-owned migration 000019 for Python Laboratory, NHIA/HMO and Radiology tables; verify a fresh PostgreSQL database without ORM schema creation.
@@ -437,3 +433,17 @@ decision) rather than resolving it silently.
 - [ ] Run the 17 skipped Go database cases and eight skipped Python real cross-service cases in an authorized test database; verify a real multi-user Group 1 journey before checking off exit criteria.
 - [ ] A29: Supply production routing/TLS, readiness, deployment/storage configuration, and encrypted backup/restore verification before deployment.
 - [ ] A30: Restore authoritative referenced docs and reconcile stale task/QA claims; complete patient-data validation of client material before committing it. No deletion is authorized by this audit.
+
+## PR audit and merge (2026-10-09)
+
+- [x] Audit PRs #5–#16 against main, diagnose shared CI failures and preserve original branch histories using merge commits.
+- [x] Correct duplicate NHIA routes, reconcile all dashboard modules, and retain the full checklist.
+- [x] Add authenticated production API requests and prevent browser fallback on rejection/network failures for incoming Mortuary, Audit, HR and Inventory.
+- [x] Add Go-owned operations migration and persisted, RBAC-protected, atomic data/audit routes (FR-HR-01, FR-HR-02, FR-AUD-01, FR-AUD-02, FR-INV-01, FR-MOR-01).
+- [x] Preserve unknown hospital policies as audited 501 responses. Owner does not yet know release, leave approval or purchase approval requirements; no policy was invented.
+- [x] Correct unconditional audit verification, synthetic negative/over-stock issuance and partial/rejected/duplicate receipt posting.
+- [x] Add production rejection and exact-money regression tests; run database-backed backend checks and frontend tests/build.
+- [ ] Complete production contract integration for the seven preview screens: NHIA, Radiology, Theatre, Emergency, Maternity, Reporting, Administration. Original UI source is retained behind explicit demo mode.
+- [ ] Configure hospital-approved body release/payment/coroner rules, leave review policy, purchase approval/receipt policy, chamber slots, sub-store mappings and least-privilege role grants before enabling blocked actions.
+- [ ] Implement authoritative audit seal verification and approved anomaly detection rules; status remains UNAVAILABLE.
+- [ ] Verify the real hospital end-to-end workflows before declaring any Build Group exit complete. Existing module completion checkmarks do not establish readiness; see PR_MERGE_AUDIT.md.

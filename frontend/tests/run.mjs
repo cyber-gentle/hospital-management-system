@@ -13,3 +13,13 @@ const productionFile = join(directory, 'production.test.cjs');
 await build({ entryPoints: ['tests/production.test.ts'], outfile: productionFile, bundle: true, platform: 'node', format: 'cjs', define: { 'import.meta.env.VITE_DEMO_MODE': '"false"' } });
 const production = spawnSync(process.execPath, ['--test', productionFile], { stdio: 'inherit' });
 if (production.status !== 0) process.exitCode = production.status ?? 1;
+
+const prProductionFile = join(directory, 'pr-production.test.cjs');
+await build({ entryPoints: ['tests/pr-production.test.ts'], outfile: prProductionFile, bundle: true, platform: 'node', format: 'cjs', define: { 'import.meta.env.VITE_DEMO_MODE': '"false"' } });
+const prProduction = spawnSync(process.execPath, ['--test', prProductionFile], { stdio: 'inherit' });
+if (prProduction.status !== 0) process.exitCode = prProduction.status ?? 1;
+
+const prDemoFile = join(directory, 'pr-demo.test.cjs');
+await build({ entryPoints: ['tests/pr-demo.test.ts'], outfile: prDemoFile, bundle: true, platform: 'node', format: 'cjs', define: { 'import.meta.env.VITE_DEMO_MODE': '"true"' } });
+const prDemo = spawnSync(process.execPath, ['--test', prDemoFile], { stdio: 'inherit' });
+if (prDemo.status !== 0) process.exitCode = prDemo.status ?? 1;

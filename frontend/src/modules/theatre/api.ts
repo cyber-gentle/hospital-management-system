@@ -1,3 +1,6 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import { 
   SurgeryBooking, 
   PreOpChecklist, 
@@ -19,7 +22,8 @@ function getStoredBookings(): SurgeryBooking[] {
       return initialSurgeryBookings;
     }
     return JSON.parse(raw) as SurgeryBooking[];
-  } catch {
+  } catch (error) {
+      rethrowBackendRejection(error);
     return initialSurgeryBookings;
   }
 }
@@ -34,20 +38,23 @@ function saveBookings(bookings: SurgeryBooking[]): void {
 
 export const theatreApi = {
   getBookings: async (): Promise<SurgeryBooking[]> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       await new Promise(res => setTimeout(res, 200));
       return getStoredBookings();
     }
     try {
-      const res = await fetch(`${API_BASE}/bookings`);
+      const res = await strictModuleFetch(`${API_BASE}/bookings`);
       if (!res.ok) throw new Error("Backend unavailable");
       return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return getStoredBookings();
     }
   },
 
   createBooking: async (booking: Omit<SurgeryBooking, "id" | "bookingNumber" | "createdAt" | "updatedAt">): Promise<SurgeryBooking> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       await new Promise(res => setTimeout(res, 300));
       const bookings = getStoredBookings();
@@ -64,14 +71,15 @@ export const theatreApi = {
       return newBooking;
     }
     try {
-      const res = await fetch(`${API_BASE}/bookings`, {
+      const res = await strictModuleFetch(`${API_BASE}/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(booking),
       });
       if (!res.ok) throw new Error("Failed to create surgery booking");
       return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       const bookings = getStoredBookings();
       const count = bookings.length + 1;
       const newBooking: SurgeryBooking = {
@@ -88,6 +96,7 @@ export const theatreApi = {
   },
 
   updatePreOpChecklist: async (bookingId: string, checklist: PreOpChecklist): Promise<SurgeryBooking> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       await new Promise(res => setTimeout(res, 300));
       const bookings = getStoredBookings();
@@ -105,14 +114,15 @@ export const theatreApi = {
       return target;
     }
     try {
-      const res = await fetch(`${API_BASE}/bookings/${bookingId}/checklist`, {
+      const res = await strictModuleFetch(`${API_BASE}/bookings/${bookingId}/checklist`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(checklist),
       });
       if (!res.ok) throw new Error("Failed to update pre-op checklist");
       return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       const bookings = getStoredBookings();
       const idx = bookings.findIndex(b => b.id === bookingId);
       if (idx === -1) throw new Error("Booking not found");
@@ -130,6 +140,7 @@ export const theatreApi = {
   },
 
   recordIntraOpNotes: async (bookingId: string, notes: IntraOpNotes): Promise<SurgeryBooking> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       await new Promise(res => setTimeout(res, 300));
       const bookings = getStoredBookings();
@@ -145,14 +156,15 @@ export const theatreApi = {
       return target;
     }
     try {
-      const res = await fetch(`${API_BASE}/bookings/${bookingId}/intraop`, {
+      const res = await strictModuleFetch(`${API_BASE}/bookings/${bookingId}/intraop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(notes),
       });
       if (!res.ok) throw new Error("Failed to record intra-operative notes");
       return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       const bookings = getStoredBookings();
       const idx = bookings.findIndex(b => b.id === bookingId);
       if (idx === -1) throw new Error("Booking not found");
@@ -168,6 +180,7 @@ export const theatreApi = {
   },
 
   updatePacuLog: async (bookingId: string, pacuLog: PacuRecoveryLog): Promise<SurgeryBooking> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       await new Promise(res => setTimeout(res, 300));
       const bookings = getStoredBookings();
@@ -185,14 +198,15 @@ export const theatreApi = {
       return target;
     }
     try {
-      const res = await fetch(`${API_BASE}/bookings/${bookingId}/pacu`, {
+      const res = await strictModuleFetch(`${API_BASE}/bookings/${bookingId}/pacu`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pacuLog),
       });
       if (!res.ok) throw new Error("Failed to update PACU log");
       return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       const bookings = getStoredBookings();
       const idx = bookings.findIndex(b => b.id === bookingId);
       if (idx === -1) throw new Error("Booking not found");
@@ -210,6 +224,7 @@ export const theatreApi = {
   },
 
   updateStatus: async (bookingId: string, status: SurgeryStatus): Promise<SurgeryBooking> => {
+    requireDemoMode();
     if (DEMO_MODE) {
       await new Promise(res => setTimeout(res, 200));
       const bookings = getStoredBookings();
@@ -224,14 +239,15 @@ export const theatreApi = {
       return target;
     }
     try {
-      const res = await fetch(`${API_BASE}/bookings/${bookingId}/status`, {
+      const res = await strictModuleFetch(`${API_BASE}/bookings/${bookingId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error("Failed to update status");
       return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       const bookings = getStoredBookings();
       const idx = bookings.findIndex(b => b.id === bookingId);
       if (idx === -1) throw new Error("Booking not found");

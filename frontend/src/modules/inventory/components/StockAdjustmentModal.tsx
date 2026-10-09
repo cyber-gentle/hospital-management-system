@@ -45,7 +45,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newStock < 0) {
+    if (!Number.isSafeInteger(newStock) || newStock < 0) {
       setError('Physical stock count cannot be negative');
       return;
     }
@@ -54,7 +54,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     setError(null);
 
     try {
-      const updated = await inventoryApi.updateItemStock(item.id, newStock);
+      const updated = await inventoryApi.adjustStock(item.id, variance, `${reason}: ${notes.trim()}`);
       onAdjusted(updated);
       onClose();
     } catch (err: unknown) {

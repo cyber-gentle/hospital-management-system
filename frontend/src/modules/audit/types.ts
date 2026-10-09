@@ -77,5 +77,5 @@ export interface AuditMetrics {
   failuresCount: number;
   activeAnomalies: number;
   criticalExceptions: number;
-  integrityStatus: 'VALID' | 'VERIFIED' | 'TAMPER_DETECTED';
+  integrityStatus: 'VALID' | 'VERIFIED' | 'TAMPER_DETECTED' | 'UNAVAILABLE';
 }

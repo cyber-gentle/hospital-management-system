@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,17 @@ import (
 func BindOperation(c *gin.Context, target interface{}) bool {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
 	decoder := json.NewDecoder(c.Request.Body)
+	var raw json.RawMessage
+	if err := decoder.Decode(&raw); err != nil || len(bytes.TrimSpace(raw)) == 0 || bytes.TrimSpace(raw)[0] != '{' {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Request must be a JSON object"})
+		return false
+	}
+	var remainder interface{}
+	if err := decoder.Decode(&remainder); !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Request must contain one JSON object"})
+		return false
+	}
+	decoder = json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})

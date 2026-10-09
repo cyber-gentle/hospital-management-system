@@ -1,3 +1,8 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { DEMO_MODE } from "../../lib/demo";
+import { apiRequest } from "../../lib/api";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import { StaffProfile, DutyShift, LeaveRequest, HRMetrics } from './types';
 import { INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_LEAVE_REQUESTS } from './mockData';
 
@@ -7,6 +12,7 @@ const STORAGE_KEY_LEAVES = 'hims_hr_leaves_v1';
 
 class HrApi {
   private initStorage(): void {
+    requireDemoMode();
     if (!localStorage.getItem(STORAGE_KEY_STAFF)) {
       localStorage.setItem(STORAGE_KEY_STAFF, JSON.stringify(INITIAL_STAFF));
     }
@@ -23,7 +29,8 @@ class HrApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_STAFF);
       return data ? JSON.parse(data) : INITIAL_STAFF;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_STAFF;
     }
   }
@@ -37,7 +44,8 @@ class HrApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_SHIFTS);
       return data ? JSON.parse(data) : INITIAL_SHIFTS;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_SHIFTS;
     }
   }
@@ -51,7 +59,8 @@ class HrApi {
     try {
       const data = localStorage.getItem(STORAGE_KEY_LEAVES);
       return data ? JSON.parse(data) : INITIAL_LEAVE_REQUESTS;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       return INITIAL_LEAVE_REQUESTS;
     }
   }
@@ -75,11 +84,12 @@ class HrApi {
       if (params?.status && params.status !== 'ALL') q.append('status', params.status);
       if (params?.search) q.append('search', params.search);
 
-      const res = await fetch(`/api/v1/hr/staff?${q.toString()}`);
+      const res = await strictModuleFetch(`/api/v1/hr/staff?${q.toString()}`);
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -111,9 +121,10 @@ class HrApi {
 
   async getStaffById(id: string): Promise<StaffProfile | null> {
     try {
-      const res = await fetch(`/api/v1/hr/staff/${id}`);
+      const res = await strictModuleFetch(`/api/v1/hr/staff/${id}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const staff = this.getStoredStaff();
@@ -122,13 +133,14 @@ class HrApi {
 
   async createStaff(profile: Omit<StaffProfile, 'id'>): Promise<StaffProfile> {
     try {
-      const res = await fetch('/api/v1/hr/staff', {
+      const res = await strictModuleFetch('/api/v1/hr/staff', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile)
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -144,13 +156,14 @@ class HrApi {
 
   async updateStaff(id: string, updates: Partial<StaffProfile>): Promise<StaffProfile> {
     try {
-      const res = await fetch(`/api/v1/hr/staff/${id}`, {
+      const res = await strictModuleFetch(`/api/v1/hr/staff/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -177,9 +190,10 @@ class HrApi {
       if (params?.startDate) q.append('startDate', params.startDate);
       if (params?.endDate) q.append('endDate', params.endDate);
 
-      const res = await fetch(`/api/v1/hr/shifts?${q.toString()}`);
+      const res = await strictModuleFetch(`/api/v1/hr/shifts?${q.toString()}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -200,13 +214,14 @@ class HrApi {
 
   async createShift(shift: Omit<DutyShift, 'id'>): Promise<DutyShift> {
     try {
-      const res = await fetch('/api/v1/hr/shifts', {
+      const res = await strictModuleFetch('/api/v1/hr/shifts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(shift)
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -222,13 +237,14 @@ class HrApi {
 
   async updateShift(id: string, updates: Partial<DutyShift>): Promise<DutyShift> {
     try {
-      const res = await fetch(`/api/v1/hr/shifts/${id}`, {
+      const res = await strictModuleFetch(`/api/v1/hr/shifts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -244,9 +260,10 @@ class HrApi {
 
   async deleteShift(id: string): Promise<void> {
     try {
-      const res = await fetch(`/api/v1/hr/shifts/${id}`, { method: 'DELETE' });
+      const res = await strictModuleFetch(`/api/v1/hr/shifts/${id}`, { method: 'DELETE' });
       if (res.ok) return;
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -263,9 +280,10 @@ class HrApi {
       if (params?.status && params.status !== 'ALL') q.append('status', params.status);
       if (params?.staffId) q.append('staffId', params.staffId);
 
-      const res = await fetch(`/api/v1/hr/leaves?${q.toString()}`);
+      const res = await strictModuleFetch(`/api/v1/hr/leaves?${q.toString()}`);
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -283,13 +301,14 @@ class HrApi {
 
   async submitLeaveRequest(request: Omit<LeaveRequest, 'id' | 'appliedAt'>): Promise<LeaveRequest> {
     try {
-      const res = await fetch('/api/v1/hr/leaves', {
+      const res = await strictModuleFetch('/api/v1/hr/leaves', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -311,13 +330,14 @@ class HrApi {
     approvedBy: string
   ): Promise<LeaveRequest> {
     try {
-      const res = await fetch(`/api/v1/hr/leaves/${id}/adjudicate`, {
+      const res = await strictModuleFetch(`/api/v1/hr/leaves/${id}/adjudicate`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision, notes, approvedBy })
       });
       if (res.ok) return await res.json();
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -338,6 +358,7 @@ class HrApi {
   }
 
   async getHRMetrics(): Promise<HRMetrics> {
+    if (!DEMO_MODE) return apiRequest<HRMetrics>("/hr/metrics");
     const staff = this.getStoredStaff();
     const shifts = this.getStoredShifts();
     const leaves = this.getStoredLeaves();

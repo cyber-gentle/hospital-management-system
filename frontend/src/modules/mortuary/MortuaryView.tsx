@@ -30,6 +30,7 @@ export const MortuaryView: React.FC<MortuaryViewProps> = ({ onBackToDashboard })
   const [autopsies, setAutopsies] = useState<AutopsyLog[]>([]);
   const [releases, setReleases] = useState<BodyReleaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Tabs: 'active' | 'chambers' | 'autopsies' | 'releases'
   const [activeTab, setActiveTab] = useState<'active' | 'chambers' | 'autopsies' | 'releases'>('active');
@@ -44,6 +45,7 @@ export const MortuaryView: React.FC<MortuaryViewProps> = ({ onBackToDashboard })
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [dData, uData, aData, rData] = await Promise.all([
         mortuaryApi.getDeceasedRecords(),
@@ -55,6 +57,9 @@ export const MortuaryView: React.FC<MortuaryViewProps> = ({ onBackToDashboard })
       setUnits(uData);
       setAutopsies(aData);
       setReleases(rData);
+    } catch (error) {
+      setDeceasedList([]); setUnits([]); setAutopsies([]); setReleases([]); setSelectedForAutopsy(null); setSelectedForRelease(null);
+      setLoadError(error instanceof Error ? error.message : "Data could not be loaded");
     } finally {
       setLoading(false);
     }
@@ -102,6 +107,7 @@ export const MortuaryView: React.FC<MortuaryViewProps> = ({ onBackToDashboard })
 
   return (
     <div className="space-y-6">
+      {loadError && <p role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">{loadError}</p>}
       {/* Top Banner & Department Overview */}
       <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-zinc-900 rounded-2xl p-6 text-white shadow-xl border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -337,8 +343,8 @@ export const MortuaryView: React.FC<MortuaryViewProps> = ({ onBackToDashboard })
 
                   {/* Accrued Storage Tariff */}
                   <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100 text-slate-500">
-                    <span>Storage: {d.daysInStorage} days</span>
-                    <span className="font-bold text-slate-800">Fee: ₦{d.totalAccruedStorageFee.toLocaleString()}</span>
+                    <span>Storage: {d.daysInStorage === null ? 'Not configured' : `${d.daysInStorage} days`}</span>
+                    <span className="font-bold text-slate-800">Fee: ₦{d.totalAccruedStorageFee?.toLocaleString() ?? 'Not configured'}</span>
                   </div>
                 </div>
 

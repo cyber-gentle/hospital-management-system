@@ -1,3 +1,8 @@
+import { rethrowBackendRejection } from "../../lib/fallback";
+import { DEMO_MODE } from "../../lib/demo";
+import { apiRequest } from "../../lib/api";
+import { strictModuleFetch } from "../../lib/moduleFetch";
+import { requireDemoMode } from "../../lib/demo";
 import { DeceasedRecord, ColdStorageUnit, AutopsyLog, BodyReleaseRecord } from './types';
 import {
   INITIAL_DECEASED_RECORDS,
@@ -14,6 +19,7 @@ const RELEASES_STORAGE_KEY = 'hims_mortuary_releases_v1';
 // Seed initial mock data if not already present in localStorage
 const initializeStorage = () => {
   if (typeof window === 'undefined') return;
+  try { requireDemoMode(); } catch { return; }
   if (!localStorage.getItem(DECEASED_STORAGE_KEY)) {
     localStorage.setItem(DECEASED_STORAGE_KEY, JSON.stringify(INITIAL_DECEASED_RECORDS));
   }
@@ -34,11 +40,12 @@ export const mortuaryApi = {
   // --- FR-MOR-01: Deceased Body Intake & Logging ---
   async getDeceasedRecords(): Promise<DeceasedRecord[]> {
     try {
-      const res = await fetch('/api/v1/mortuary/deceased');
+      const res = await strictModuleFetch('/api/v1/mortuary/deceased');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Backend unavailable or 404, fallback to localStorage
     }
     const data = localStorage.getItem(DECEASED_STORAGE_KEY);
@@ -61,15 +68,16 @@ export const mortuaryApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/mortuary/admit', {
+      const res = await strictModuleFetch('/api/v1/mortuary/admit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRecord)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -88,11 +96,12 @@ export const mortuaryApi = {
   // --- FR-MOR-02: Cold Storage Chambers Tracking ---
   async getColdStorageUnits(): Promise<ColdStorageUnit[]> {
     try {
-      const res = await fetch('/api/v1/mortuary/chambers');
+      const res = await strictModuleFetch('/api/v1/mortuary/chambers');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const data = localStorage.getItem(CHAMBERS_STORAGE_KEY);
@@ -100,6 +109,7 @@ export const mortuaryApi = {
   },
 
   async assignChamber(deceasedId: string, unitId: string, chamberNumber: string): Promise<ColdStorageUnit[]> {
+    if (!DEMO_MODE) return apiRequest<ColdStorageUnit[]>(`/mortuary/chambers/${encodeURIComponent(unitId)}/assign`, {method:"POST",body:JSON.stringify({deceasedId,chamberNumber})});
     const units = await this.getColdStorageUnits();
     const records = await this.getDeceasedRecords();
     const deceased = records.find(r => r.id === deceasedId);
@@ -160,6 +170,7 @@ export const mortuaryApi = {
   },
 
   async releaseChamber(deceasedId: string): Promise<ColdStorageUnit[]> {
+    if (!DEMO_MODE) return apiRequest<ColdStorageUnit[]>(`/mortuary/chambers/${encodeURIComponent(deceasedId)}/release`, {method:"POST",body:JSON.stringify({deceasedId})});
     const units = await this.getColdStorageUnits();
     const updated = units.map(unit => {
       const updatedChambers = unit.chambers.map(ch => {
@@ -184,11 +195,12 @@ export const mortuaryApi = {
   // --- FR-MOR-03: Autopsy Logging & Body Release ---
   async getAutopsyLogs(): Promise<AutopsyLog[]> {
     try {
-      const res = await fetch('/api/v1/mortuary/autopsies');
+      const res = await strictModuleFetch('/api/v1/mortuary/autopsies');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const data = localStorage.getItem(AUTOPSY_STORAGE_KEY);
@@ -203,15 +215,16 @@ export const mortuaryApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/mortuary/autopsies', {
+      const res = await strictModuleFetch('/api/v1/mortuary/autopsies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newLog)
+        body: JSON.stringify({...payload, autopsyDate: newLog.autopsyDate})
       });
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -225,7 +238,7 @@ export const mortuaryApi = {
       if (r.id === newLog.deceasedId) {
         return {
           ...r,
-          status: 'CLEARED_FOR_RELEASE' as const,
+          status: 'AUTOPSY_COMPLETED' as const,
           causeOfDeath: newLog.definitiveCauseOfDeath,
           autopsyId: newLog.id,
           updatedAt: new Date().toISOString()
@@ -240,11 +253,12 @@ export const mortuaryApi = {
 
   async getBodyReleases(): Promise<BodyReleaseRecord[]> {
     try {
-      const res = await fetch('/api/v1/mortuary/releases');
+      const res = await strictModuleFetch('/api/v1/mortuary/releases');
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
     const data = localStorage.getItem(RELEASES_STORAGE_KEY);
@@ -259,15 +273,16 @@ export const mortuaryApi = {
     };
 
     try {
-      const res = await fetch('/api/v1/mortuary/releases', {
+      const res = await strictModuleFetch('/api/v1/mortuary/releases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRelease)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         return await res.json();
       }
-    } catch {
+    } catch (error) {
+      rethrowBackendRejection(error);
       // Fallback
     }
 
@@ -282,7 +297,7 @@ export const mortuaryApi = {
         return {
           ...r,
           status: 'RELEASED_TO_FAMILY' as const,
-          financialClearancePaid: true,
+          financialClearancePaid: r.financialClearancePaid,
           releaseId: newRelease.id,
           updatedAt: new Date().toISOString()
         };

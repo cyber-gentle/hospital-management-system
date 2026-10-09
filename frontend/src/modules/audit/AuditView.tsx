@@ -34,6 +34,7 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
   const [exceptions, setExceptions] = useState<AuditAnomalyException[]>([]);
   const [metrics, setMetrics] = useState<AuditMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Active Tab: 'stream' | 'anomalies' | 'integrity'
   const [activeTab, setActiveTab] = useState<'stream' | 'anomalies' | 'integrity'>('stream');
@@ -57,6 +58,7 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [logsData, exceptionsData, metricsData] = await Promise.all([
         auditApi.getAuditLogs(filters),
@@ -66,6 +68,9 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
       setLogs(logsData);
       setExceptions(exceptionsData);
       setMetrics(metricsData);
+    } catch (error) {
+      setLogs([]); setExceptions([]); setMetrics(null); setSelectedLog(null); setSelectedException(null);
+      setLoadError(error instanceof Error ? error.message : "Audit data could not be loaded");
     } finally {
       setLoading(false);
     }
@@ -136,6 +141,7 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
 
   return (
     <div className="space-y-6">
+      {loadError && <p role="alert" className="rounded-lg bg-red-50 p-4 text-red-700">{loadError}</p>}
       {/* Top Banner & Department Overview */}
       <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-zinc-900 rounded-2xl p-6 text-white shadow-xl border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -176,7 +182,7 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
             </button>
             <div className="px-4 py-2 text-xs font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 rounded-xl flex items-center gap-2">
               <Lock className="w-4 h-4 text-emerald-400" />
-              Append-Only DB Verified
+              Audit stream
             </div>
           </div>
         </div>
@@ -208,11 +214,11 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
 
             <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>Authorization Failures</span>
+                <span>Recorded Failures</span>
                 <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
               </div>
               <div className="text-2xl font-black text-rose-400 mt-1">{metrics.failuresCount}</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">RBAC boundary blocks logged</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Recorded failed actions</div>
             </div>
 
             <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
@@ -220,8 +226,8 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
                 <span>Cryptographic Digest</span>
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
               </div>
-              <div className="text-2xl font-black text-emerald-400 mt-1">100% Intact</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">SHA-256 seal chain valid</div>
+              <div className="text-2xl font-black text-emerald-400 mt-1">{metrics.integrityStatus}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Cryptographic verification is not configured</div>
             </div>
           </div>
         )}
@@ -309,10 +315,10 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Audit Integrity &amp; AGENTS.md Architectural Guardrails
+                Audit integrity status
               </h3>
               <p className="text-xs text-slate-500">
-                Authoritative rules enforced by Go Core audit writer and verified by the Audit Department
+                Audit records and exceptions are provided by the hospital service.
               </p>
             </div>
           </div>
@@ -325,9 +331,8 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
                 The <code className="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono">audit_logs</code> table has
-                zero <code className="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono">UPDATE</code> or{' '}
-                <code className="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono">DELETE</code> privileges granted
-                at the PostgreSQL database layer. All clinical and financial deletions are soft-deleted via{' '}
+                append-only protections against <code className="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono">UPDATE</code> and{' '}
+                <code className="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono">DELETE</code> enforced by PostgreSQL triggers. Service database roles still require deployment validation. All clinical and financial deletions are soft-deleted via{' '}
                 <code className="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono">deleted_at</code> with an
                 immediate immutable audit entry.
               </p>
@@ -352,9 +357,7 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
                 Cryptographic Digest Verification
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Every event record is sealed with a SHA-256 digest calculated across the previous log digest, timestamp,
-                actor ID, action, and normalized JSON payload. Any manual tampering with database rows invalidates the
-                chain instantly and triggers immediate supervisory alerts.
+                Cryptographic seals and supervisory tamper alerts are not configured. No event is reported as verified.
               </p>
             </div>
 
@@ -364,9 +367,7 @@ export const AuditView: React.FC<AuditViewProps> = ({ onBackToDashboard }) => {
                 Active Anomaly Detection Rules
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Real-time heuristic evaluation triggers alerts on high-value invoice deletions (over ₦1,000,000), nocturnal
-                controlled drug dispensing (11:00 PM - 05:00 AM), forced discharge checklist overrides with unpaid
-                balances, and repeated unauthorized role permission checks.
+                This screen displays recorded exceptions. Automated detection rules and thresholds require hospital approval.
               </p>
             </div>
           </div>

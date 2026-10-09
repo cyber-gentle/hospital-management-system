@@ -1,3 +1,5 @@
+import { DEMO_MODE, requireDemoMode } from "../../lib/demo";
+import { ModuleAvailability } from "../../components/ModuleAvailability";
 import React, { useState } from "react";
 import {
   ArrowLeft,
@@ -72,7 +74,7 @@ const MOCK_ORDERS = [
 export const RadiologyView: React.FC<RadiologyViewProps> = ({ onBackToDashboard }) => {
   const [activeTab, setActiveTab] = useState<TabType>("worklist");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<(typeof MOCK_ORDERS)[number] | null>(null);
   const [orders, setOrders] = useState(MOCK_ORDERS);
 
   const filteredOrders = orders.filter(o => 
@@ -86,12 +88,14 @@ export const RadiologyView: React.FC<RadiologyViewProps> = ({ onBackToDashboard 
   const completedOrders = orders.filter(o => o.status === 'Completed');
 
   const handleCompleteOrder = () => {
+    requireDemoMode();
     if (!selectedOrder) return;
     setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, status: 'Completed' } : o));
     setSelectedOrder(null);
     setActiveTab("completed");
   };
 
+  if (!DEMO_MODE) return <ModuleAvailability name="Radiology" reason="Imaging requests and reports are not connected to this screen yet." />;
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}

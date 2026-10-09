@@ -118,6 +118,17 @@ func TestOperationsPersistencePermissionsAndAtomicAudit(t *testing.T) {
 	staffBody := fmt.Sprintf(`{"staffNumber":%q,"firstName":"Synthetic","lastName":"Staff","gender":"MALE","dateOfBirth":"1990-01-01","email":"synthetic@example.invalid","phone":"08000000000","department":"Test","cadre":"ADMINISTRATIVE","designation":"Synthetic","employmentType":"FULL_TIME","dateJoined":"2020-01-01","licenseType":"NOT_APPLICABLE","licenseStatus":"NOT_APPLICABLE","status":"ACTIVE"}`, unique)
 	staff := perform("POST", "/api/v1/hr/staff", staffBody, "CREATE_STAFF", 201)
 	staffID := staff["id"].(string)
+	for _, invalid := range []string{`null`, `[]`, `{"unknownField":true}`, `{} {}`} {
+		before := operationsSnapshot(t, db)
+		response := operationsRequest(router, "PATCH", "/api/v1/hr/staff/"+staffID, invalid, token)
+		if response.Code != 400 {
+			t.Fatalf("Invalid object accepted: %s", response.Body.String())
+		}
+		if !reflect.DeepEqual(before, operationsSnapshot(t, db)) {
+			t.Fatal("Invalid object changed data")
+		}
+	}
+
 	perform("PATCH", "/api/v1/hr/staff/"+staffID, `{"designation":"Updated synthetic"}`, "UPDATE_STAFF", 200)
 	shift := perform("POST", "/api/v1/hr/shifts", fmt.Sprintf(`{"staffId":%q,"shiftDate":"2026-10-08","shiftType":"MORNING","startTime":"08:00","endTime":"16:00","status":"SCHEDULED"}`, staffID), "CREATE_SHIFT", 201)
 	shiftID := shift["id"].(string)
@@ -174,6 +185,19 @@ func TestOperationsPersistencePermissionsAndAtomicAudit(t *testing.T) {
 			method = "PATCH"
 		}
 		before := operationsSnapshot(t, db)
+		for _, scenario := range []struct {
+			router *gin.Engine
+			token  string
+			status int
+		}{{router, "", 401}, {router, deniedToken, 403}, {auditDenied, token, 503}} {
+			response := operationsRequest(scenario.router, method, blocked.path, blocked.body, scenario.token)
+			if response.Code != scenario.status {
+				t.Fatalf("Blocked route %s expected %d got %d", blocked.path, scenario.status, response.Code)
+			}
+			if !reflect.DeepEqual(before, operationsSnapshot(t, db)) {
+				t.Fatal("Denied policy action changed data")
+			}
+		}
 		w := operationsRequest(router, method, blocked.path, blocked.body, token)
 		if w.Code != 501 {
 			t.Fatalf("Unconfigured action expected 501: %s", w.Body.String())
