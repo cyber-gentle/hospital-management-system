@@ -252,13 +252,15 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
-│   └── mortuary/                           # Build Group 3: Mortuary & Pathology Services (FR-MOR-01 to FR-MOR-03)
+│   └── audit/                              # Build Group 4: Audit Department Dashboard (FR-AUD-01 to FR-AUD-03)
 │       ├── types.ts
 │       ├── api.ts
 │       ├── mockData.ts
-│       ├── MortuaryView.tsx
+│       ├── AuditView.tsx
 │       └── components/
-│           ├── DeceasedIntakeModal.tsx
-│           ├── ColdStorageModal.tsx
-│           ├── AutopsyLogModal.tsx
-│           └── BodyReleaseModal.tsx
+│           ├── LogViewerTable.tsx
+│           ├── LogDetailsDrawer.tsx
+│           ├── AuditFilterToolbar.tsx
+│           ├── AnomalyCenterView.tsx
+│           └── AnomalyExceptionModal.tsx
+```
