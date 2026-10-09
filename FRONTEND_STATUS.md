@@ -1,7 +1,7 @@
 # Hospital Information Management System (HIMS) — Frontend Status & Roadmap
 
 > **Current Local Time:** September 28, 2026  
-> **Active Git Branch:** `feat/group-1-medical-records`  
+> **Active Git Branch:** `feat/group-2-nhia-clean`  
 > **Parent / Upstream Branch:** `origin/feat/phase-0-dev-env-and-db` (Commit `d659fa0`)  
 > **Developer Scope:** Strictly Frontend (`frontend/`)  
 > **Repository Rules Adherence:** Fully compliant with `AGENTS.md`, `ARCHITECTURE.md`, and `PRD.md`  

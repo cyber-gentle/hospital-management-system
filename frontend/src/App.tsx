@@ -208,6 +208,18 @@ const Dashboard: React.FC = () => {
                 <span className="w-2 h-2 rounded-full bg-orange-600"></span>
                 Sub-stores
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveModule("nhia")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+                  activeModule === "nhia"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                NHIA / HMO
+              </button>
             </nav>
           </div>
 
@@ -254,7 +266,7 @@ const Dashboard: React.FC = () => {
         ) : activeModule === "substore" ? (
           <SubstoreView />
         ) : activeModule === "nhia" ? (
-          <NhiaClaimsView />
+          <NhiaClaimsView onBackToDashboard={() => setActiveModule(null)} />
         ) : activeModule === "laboratory" ? (
           <LaboratoryView />
         ) : (

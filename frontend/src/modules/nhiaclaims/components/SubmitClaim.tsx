@@ -43,8 +43,9 @@ export const SubmitClaim: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) 
         providerId: "HMO-1",
       });
       onSuccess(); // Switch back to claims tab to see the new claim
-    } catch (err: any) {
-      setError(err.message || "Failed to submit claim");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to submit claim";
+      setError(msg);
     } finally {
       setSubmitting(false);
     }

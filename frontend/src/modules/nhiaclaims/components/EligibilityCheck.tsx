@@ -20,8 +20,9 @@ export const EligibilityCheck: React.FC = () => {
     try {
       const data = await nhiaApi.checkEligibility(nhiaNumber);
       setResult(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to verify eligibility");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to verify eligibility";
+      setError(msg);
     } finally {
       setLoading(false);
     }

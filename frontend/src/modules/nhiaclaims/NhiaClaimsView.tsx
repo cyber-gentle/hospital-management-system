@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, FileText, CheckCircle, Tag, PlusCircle } from "lucide-react";
+import { ShieldCheck, FileText, CheckCircle, Tag, PlusCircle, ArrowLeft } from "lucide-react";
 import { nhiaApi } from "./api";
 import { NhiaClaim } from "./types";
 import { EligibilityCheck } from "./components/EligibilityCheck";
 import { TariffMapping } from "./components/TariffMapping";
 import { SubmitClaim } from "./components/SubmitClaim";
 
-export const NhiaClaimsView: React.FC = () => {
+interface NhiaClaimsViewProps {
+  onBackToDashboard?: () => void;
+}
+
+export const NhiaClaimsView: React.FC<NhiaClaimsViewProps> = ({ onBackToDashboard }) => {
   const [claims, setClaims] = useState<NhiaClaim[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"eligibility" | "claims" | "tariffs" | "submit">("eligibility");
@@ -30,10 +34,21 @@ export const NhiaClaimsView: React.FC = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <ShieldCheck className="w-6 h-6 text-blue-600" />
-          NHIA / HMO Claims Management
-        </h1>
+        <div className="flex items-center gap-4">
+          {onBackToDashboard && (
+            <button
+              onClick={onBackToDashboard}
+              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <ShieldCheck className="w-6 h-6 text-blue-600" />
+            NHIA / HMO Claims Management
+          </h1>
+        </div>
       </div>
 
       <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl w-fit overflow-x-auto">
