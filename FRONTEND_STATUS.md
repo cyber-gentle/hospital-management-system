@@ -252,14 +252,12 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
-│   └── theatre/                            # Build Group 3: Operating Theatre (OR)
+│   └── emergency/                          # Build Group 3: Accident & Emergency (A&E)
 │       ├── types.ts
 │       ├── api.ts
 │       ├── mockData.ts
-│       ├── TheatreView.tsx
+│       ├── EmergencyView.tsx
 │       └── components/
-│           ├── SurgeryScheduleModal.tsx
-│           ├── PreOpChecklistModal.tsx
-│           ├── IntraOpNotesModal.tsx
-│           └── PacuRecoveryModal.tsx
-```
+│           ├── RapidTriageModal.tsx
+│           ├── EmergencyBedBoardModal.tsx
+│           └── StabilizationNotesModal.tsx
