@@ -1,6 +1,10 @@
 # TASKS.md — Step-by-Step Checklist
 ## Hospital Information Management System (HIMS)
 
+> **IMPORTANT:** The current active focus is **strictly on the frontend**. 
+> Please refer to `frontend_status.md` for current progress and active tasks. 
+> Do not transition to backend work without explicit confirmation.
+
 > Linear roadmap broken down from `PRD.md` / `docs/08_ROADMAP_PHASES.md`.
 > Work top to bottom within each section. Check off `[x]` as completed.
 > Add newly discovered tasks under the relevant section rather than doing
