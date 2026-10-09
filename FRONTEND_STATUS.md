@@ -252,15 +252,20 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
-│   └── hr/                                 # Build Group 4: HR & Staff Management (FR-HR-01 to FR-HR-03)
+│   └── inventory/                          # Build Group 4: FR-INV-01 to FR-INV-04
 │       ├── types.ts
 │       ├── api.ts
 │       ├── mockData.ts
-│       ├── HrView.tsx
+│       ├── InventoryView.tsx
 │       └── components/
-│           ├── StaffListView.tsx
-│           ├── StaffModal.tsx
-│           ├── DutyRosterView.tsx
-│           ├── ShiftModal.tsx
-│           ├── LeaveManagementView.tsx
-│           └── LeaveRequestModal.tsx
+│           ├── CatalogItemModal.tsx
+│           ├── CatalogListView.tsx
+│           ├── StockAdjustmentModal.tsx
+│           ├── PurchaseOrderModal.tsx
+│           ├── PurchaseOrderApprovalModal.tsx
+│           ├── PurchaseOrderListView.tsx
+│           ├── GoodsReceiptModal.tsx
+│           ├── GoodsReceiptListView.tsx
+│           ├── SubstoreIssuanceModal.tsx
+│           └── SubstoreIssuanceListView.tsx
+```
