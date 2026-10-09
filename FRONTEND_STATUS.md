@@ -252,4 +252,13 @@ frontend/src/
 │           ├── ICD10Selector.tsx
 │           ├── PrescriptionModal.tsx
 │           └── InvestigationOrderModal.tsx
+│   └── reporting/                          # Build Group 4: FR-REP-01 to FR-REP-03
+│       ├── types.ts
+│       ├── api.ts
+│       ├── mockData.ts
+│       ├── ReportingView.tsx
+│       └── components/
+│           ├── FinancialReportsView.tsx
+│           ├── ClinicalCensusView.tsx
+│           └── OperationalMetricsView.tsx
 ```
