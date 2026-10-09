@@ -21,8 +21,9 @@ class RadiologyCatalog(Base):
     modality = Column(String, nullable=False) # e.g. XRAY, MRI, CT
     exam_name = Column(String, nullable=False)
     price = Column(Numeric(10, 2), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class RadiologyRequest(Base):
     __tablename__ = "radiology_requests"
@@ -35,5 +36,6 @@ class RadiologyRequest(Base):
     dicom_study_uid = Column(String, nullable=True) # Reference to PACS
     requested_by = Column(UUID(as_uuid=True), nullable=False)
     radiologist_id = Column(UUID(as_uuid=True), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

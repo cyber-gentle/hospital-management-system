@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from auth.jwt import TokenClaims, TokenVerifier
+from clients.audited_transaction import commit_audited
 from clients.core_client import AuditLogPayload, CoreServiceClient, CoreServiceError
 from config import get_settings
 from database import get_db
@@ -18,7 +19,7 @@ core_client = CoreServiceClient(
     internal_key=settings.internal_service_key,
 )
 
-async def check_permissions(user: TokenClaims, action: str):
+async def check_permissions(user: TokenClaims, action: str) -> None:
     try:
         is_allowed = await core_client.check_authorization(
             role=user.role,
@@ -38,7 +39,7 @@ async def check_permissions(user: TokenClaims, action: str):
             detail=f"Forbidden: role is not authorized for laboratory:{action}",
         )
 
-async def log_audit(user: TokenClaims, action: str, resource_type: str, resource_id: str, status_msg: str, details: dict):
+async def log_audit(db: Session, user: TokenClaims, action: str, resource_type: str, resource_id: str, status_msg: str, details: dict[str, object]) -> None:
     audit_entry = AuditLogPayload(
         user_id=user.user_id,
         user_name=user.username,
@@ -51,7 +52,7 @@ async def log_audit(user: TokenClaims, action: str, resource_type: str, resource
         status=status_msg,
     )
     try:
-        await core_client.record_audit_log(audit_entry)
+        await commit_audited(db, core_client, audit_entry)
     except CoreServiceError as err:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -69,10 +70,10 @@ async def create_test_catalog(
     
     db_item = models.LabTestCatalog(**catalog.model_dump())
     db.add(db_item)
-    db.commit()
+    db.flush()
     db.refresh(db_item)
     
-    await log_audit(user, "CREATE_CATALOG", "LabTestCatalog", str(db_item.id), "SUCCESS", catalog.model_dump(mode="json"))
+    await log_audit(db, user, "CREATE_CATALOG", "LabTestCatalog", str(db_item.id), "SUCCESS", catalog.model_dump(mode="json"))
     return db_item
 
 @router.get("/catalog", response_model=List[schemas.LabTestCatalogResponse])
@@ -98,7 +99,7 @@ async def create_lab_request(
         status="PENDING"
     )
     db.add(db_request)
-    db.commit()
+    db.flush()
     db.refresh(db_request)
     
     for catalog_id in request.test_catalog_ids:
@@ -109,9 +110,9 @@ async def create_lab_request(
         )
         db.add(db_result)
         
-    db.commit()
+    db.flush()
     
-    await log_audit(user, "CREATE_REQUEST", "LabRequest", str(db_request.id), "SUCCESS", request.model_dump(mode="json"))
+    await log_audit(db, user, "CREATE_REQUEST", "LabRequest", str(db_request.id), "SUCCESS", request.model_dump(mode="json"))
     return db_request
 
 @router.put("/requests/{request_id}/sample", status_code=status.HTTP_200_OK)
@@ -122,14 +123,14 @@ async def mark_sample_collected(
 ):
     await check_permissions(user, "write")
     
-    db_request = db.query(models.LabRequest).filter(models.LabRequest.id == request_id).first()
+    db_request = db.query(models.LabRequest).filter(models.LabRequest.id == request_id, models.LabRequest.deleted_at.is_(None)).with_for_update().first()
     if not db_request:
         raise HTTPException(status_code=404, detail="Request not found")
         
     db_request.status = "SAMPLE_COLLECTED"
-    db.commit()
+    db.flush()
     
-    await log_audit(user, "UPDATE_REQUEST_STATUS", "LabRequest", str(db_request.id), "SUCCESS", {"status": "SAMPLE_COLLECTED"})
+    await log_audit(db, user, "UPDATE_REQUEST_STATUS", "LabRequest", str(db_request.id), "SUCCESS", {"status": "SAMPLE_COLLECTED"})
     return {"status": "success", "request_id": str(request_id)}
 
 @router.put("/results/{result_id}/verify", status_code=status.HTTP_200_OK)
@@ -141,7 +142,7 @@ async def verify_result(
 ):
     await check_permissions(user, "write")
     
-    db_result = db.query(models.LabResult).filter(models.LabResult.id == result_id).first()
+    db_result = db.query(models.LabResult).filter(models.LabResult.id == result_id, models.LabResult.deleted_at.is_(None)).with_for_update().first()
     if not db_result:
         raise HTTPException(status_code=404, detail="Result not found")
         
@@ -149,8 +150,8 @@ async def verify_result(
     db_result.reference_range = result_update.reference_range
     db_result.performed_by = uuid.UUID(user.user_id)
     db_result.result_status = "VERIFIED"
-    db.commit()
+    db.flush()
     
-    await log_audit(user, "VERIFY_RESULT", "LabResult", str(db_result.id), "SUCCESS", result_update.model_dump(mode="json"))
+    await log_audit(db, user, "VERIFY_RESULT", "LabResult", str(db_result.id), "SUCCESS", result_update.model_dump(mode="json"))
     return {"status": "success", "result_id": str(result_id)}
 

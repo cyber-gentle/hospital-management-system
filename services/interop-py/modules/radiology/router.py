@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from auth.jwt import TokenClaims, TokenVerifier
 from clients.core_client import AuditLogPayload, CoreServiceClient, CoreServiceError
+from clients.audited_transaction import commit_audited
 from config import get_settings
 from database import get_db
 from . import models, schemas
@@ -18,18 +19,25 @@ core_client = CoreServiceClient(
     internal_key=settings.internal_service_key,
 )
 
+async def check_permissions(claims: TokenClaims, action: str) -> None:
+    try:
+        allowed = await core_client.check_authorization(claims.role, "radiology", action, claims.user_id)
+    except CoreServiceError as exc:
+        raise HTTPException(503, "Authorization service unavailable") from exc
+    if not allowed:
+        raise HTTPException(403, "Forbidden: radiology permission required")
+
 @router.post("/catalog", response_model=schemas.RadiologyCatalogResponse, status_code=201)
 async def create_catalog_item(
     item: schemas.RadiologyCatalogCreate,
     db: Session = Depends(get_db),
     claims: TokenClaims = Depends(verify_token)
 ):
-    await core_client.check_authorization(claims.role, "radiology", "write", claims.user_id)
+    await check_permissions(claims, "write")
     
     db_item = models.RadiologyCatalog(**item.model_dump())
     db.add(db_item)
-    db.commit()
-    db.refresh(db_item)
+    db.flush()
     
     audit_entry = AuditLogPayload(
         user_id=claims.user_id,
@@ -41,7 +49,8 @@ async def create_catalog_item(
         resource_id=str(db_item.id),
         details={"exam_name": db_item.exam_name}
     )
-    await core_client.record_audit_log(audit_entry)
+    await commit_audited(db, core_client, audit_entry)
+    db.refresh(db_item)
     
     return db_item
 
@@ -50,8 +59,8 @@ async def list_catalog(
     db: Session = Depends(get_db),
     claims: TokenClaims = Depends(verify_token)
 ):
-    await core_client.check_authorization(claims.role, "radiology", "read", claims.user_id)
-    return db.query(models.RadiologyCatalog).all()
+    await check_permissions(claims, "read")
+    return db.query(models.RadiologyCatalog).filter(models.RadiologyCatalog.deleted_at.is_(None)).all()
 
 @router.post("/requests", response_model=schemas.RadiologyRequestResponse, status_code=201)
 async def create_request(
@@ -59,15 +68,14 @@ async def create_request(
     db: Session = Depends(get_db),
     claims: TokenClaims = Depends(verify_token)
 ):
-    await core_client.check_authorization(claims.role, "radiology", "write", claims.user_id)
+    await check_permissions(claims, "write")
     
     db_req = models.RadiologyRequest(
         **req.model_dump(),
         requested_by=uuid.UUID(claims.user_id)
     )
     db.add(db_req)
-    db.commit()
-    db.refresh(db_req)
+    db.flush()
     
     audit_entry = AuditLogPayload(
         user_id=claims.user_id,
@@ -79,28 +87,28 @@ async def create_request(
         resource_id=str(db_req.id),
         details={"patient_id": str(db_req.patient_id)}
     )
-    await core_client.record_audit_log(audit_entry)
+    await commit_audited(db, core_client, audit_entry)
+    db.refresh(db_req)
     
     return db_req
 
 @router.put("/requests/{request_id}", response_model=schemas.RadiologyRequestResponse)
 async def update_request(
-    request_id: str,
+    request_id: uuid.UUID,
     update_data: schemas.RadiologyRequestUpdate,
     db: Session = Depends(get_db),
     claims: TokenClaims = Depends(verify_token)
 ):
-    await core_client.check_authorization(claims.role, "radiology", "write", claims.user_id)
+    await check_permissions(claims, "write")
     
-    db_req = db.query(models.RadiologyRequest).filter(models.RadiologyRequest.id == request_id).first()
+    db_req = db.query(models.RadiologyRequest).filter(models.RadiologyRequest.id == request_id, models.RadiologyRequest.deleted_at.is_(None)).with_for_update().first()
     if not db_req:
         raise HTTPException(status_code=404, detail="Request not found")
         
     for key, value in update_data.model_dump(exclude_unset=True).items():
         setattr(db_req, key, value)
         
-    db.commit()
-    db.refresh(db_req)
+    db.flush()
     
     audit_entry = AuditLogPayload(
         user_id=claims.user_id,
@@ -112,6 +120,7 @@ async def update_request(
         resource_id=str(db_req.id),
         details={"status": db_req.status}
     )
-    await core_client.record_audit_log(audit_entry)
+    await commit_audited(db, core_client, audit_entry)
+    db.refresh(db_req)
     
     return db_req

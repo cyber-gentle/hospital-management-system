@@ -122,14 +122,26 @@ function setStoredRecon(items: ReconciliationItem[]): void {
   }
 }
 
+export function currentAccountingPeriod(): string {
+  return new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
 function getPeriodDates(period: string) {
-  const start = new Date(period);
-  start.setDate(1);
-  start.setHours(0,0,0,0);
-  const end = new Date(start);
-  end.setMonth(end.getMonth() + 1);
-  end.setDate(0);
-  end.setHours(23,59,59,999);
+  const quarter = /^Q([1-4]) (\d{4})$/.exec(period);
+  const year = /^FY (\d{4})$/.exec(period);
+  if (quarter || year) {
+    const reportYear = Number(quarter?.[2] ?? year?.[1]);
+    const firstMonth = quarter ? (Number(quarter[1]) - 1) * 3 : 0;
+    return {
+      start: new Date(Date.UTC(reportYear, firstMonth, 1)),
+      end: new Date(Date.UTC(reportYear, firstMonth + (quarter ? 3 : 12), 1) - 1),
+    };
+  }
+  // Month labels must not become the previous UTC month on Lagos workstations.
+  const parsed = new Date(/^[A-Za-z]+ \d{4}$/.test(period) ? `${period} UTC` : period);
+  if (!Number.isFinite(parsed.getTime())) throw new Error('Invalid accounting period.');
+  const start = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 1) - 1);
   return { start, end };
 }
 
@@ -432,7 +444,7 @@ export const accountingApi = {
 
   // FR-GL-04: Financial Statement Generation
 
-  getTrialBalance: async (period = "September 2026"): Promise<TrialBalanceReport> => {
+  getTrialBalance: async (period = currentAccountingPeriod()): Promise<TrialBalanceReport> => {
     try {
       const res = await fallbackFetch(`/api/v1/accounting/statements/trial-balance?period=${period}`);
       if (res.ok) {
@@ -477,7 +489,7 @@ export const accountingApi = {
     };
   },
 
-  getIncomeStatement: async (period = "September 2026"): Promise<IncomeStatementReport> => {
+  getIncomeStatement: async (period = currentAccountingPeriod()): Promise<IncomeStatementReport> => {
     try {
       const res = await fallbackFetch(`/api/v1/accounting/statements/income-statement?period=${period}`);
       if (res.ok) {
@@ -509,7 +521,7 @@ export const accountingApi = {
     };
   },
 
-  getBalanceSheet: async (period = "September 2026"): Promise<BalanceSheetReport> => {
+  getBalanceSheet: async (period = currentAccountingPeriod()): Promise<BalanceSheetReport> => {
     try {
       const res = await fallbackFetch(`/api/v1/accounting/statements/balance-sheet?period=${period}`);
       if (res.ok) {
@@ -550,7 +562,7 @@ export const accountingApi = {
   },
 
   // FR-GL-05: Patient Revenue Reconciliation against Billing
-  getBillingReconciliation: async (period = "September 2026"): Promise<BillingReconciliationReport> => {
+  getBillingReconciliation: async (period = currentAccountingPeriod()): Promise<BillingReconciliationReport> => {
     try {
       const res = await fallbackFetch(`/api/v1/accounting/reconciliation/${period}`);
       if (res.ok) {
@@ -562,19 +574,21 @@ export const accountingApi = {
     }
 
     const { start, end } = getPeriodDates(period);
-    const items = getStoredRecon();
+    const storedItems = getStoredRecon();
     for (const invoice of await billingApi.getInvoices({ includeDeleted: true })) {
-      const d = new Date(invoice.createdAt);
-      if (d < start || d > end) continue;
       for (const receipt of invoice.payments) {
-        if (items.some(i => i.billingReceiptId === receipt.id)) continue;
-        items.push({ id: `recon-${receipt.id}`, billingReceiptId: receipt.id, receiptNumber: receipt.receiptNumber,
+        if (storedItems.some(i => i.billingReceiptId === receipt.id)) continue;
+        storedItems.push({ id: `recon-${receipt.id}`, billingReceiptId: receipt.id, receiptNumber: receipt.receiptNumber,
           invoiceNumber: invoice.invoiceNumber, patientMrn: invoice.hospitalNumber, patientName: invoice.patientName,
           paymentMethod: receipt.paymentMethod, billingAmount: receipt.amountPaid, glPostedAmount: 0,
           varianceAmount: receipt.amountPaid, status: 'UNPOSTED_IN_GL', transactionDate: receipt.paymentDate });
       }
     }
-    setStoredRecon(items);
+    setStoredRecon(storedItems);
+    const items = storedItems.filter(item => {
+      const date = new Date(item.transactionDate);
+      return date >= start && date <= end;
+    });
     const totalBillingRevenue = items.reduce((s, i) => s + i.billingAmount, 0);
     const totalGlRevenue = items.reduce((s, i) => s + i.glPostedAmount, 0);
     const variance = totalBillingRevenue - totalGlRevenue;

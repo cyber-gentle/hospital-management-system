@@ -47,7 +47,7 @@ test('optional patient photo survives registration and card generation', async (
 test('network failure falls back, but authorization and validation failures do not', async () => {
   globalThis.fetch = async () => { throw new TypeError('Offline'); };
   assert.ok((await register()).id);
-  for (const status of [400,401,403,409,422]) {
+  for (const status of [400,401,403,409,422,429]) {
     globalThis.fetch = async () => new Response('',{status});
     const before = localStorage.getItem('hims_patients_local_db');
     await assert.rejects(register());
@@ -73,14 +73,19 @@ test('vitals, signed notes, dual handover and bed occupancy persist', async () =
 });
 
 test('demo statements balance and negative balances are shown on the opposite side', async () => {
-  assert.equal((await accountingApi.getTrialBalance()).isBalanced,true);
-  assert.equal((await accountingApi.getBalanceSheet()).isBalanced,true);
+  assert.equal((await accountingApi.getTrialBalance('September 2026')).isBalanced,true);
+  assert.equal((await accountingApi.getBalanceSheet('September 2026')).isBalanced,true);
   const accounts = await accountingApi.getAccounts();
-  accounts[0]!.balance = -10;
-  localStorage.setItem('hims_accounting_accounts_v1',JSON.stringify(accounts));
-  const report = await accountingApi.getTrialBalance();
-  assert.equal(report.items.find(i=>i.accountCode===accounts[0]!.code)?.credit,10);
-  assert.equal(report.isBalanced,false);
+  const cash = accounts.find(account => account.code === '1010')!;
+  const expense = accounts.find(account => account.type === 'EXPENSE')!;
+  // The period report reads posted ledger entries, not the current balance cache.
+  await accountingApi.createCashBankTransaction({date:'2026-09-30',type:'PAYMENT',bankAccountId:cash.id,contraAccountId:expense.id,amount:48510,description:'Synthetic overdraft',paymentMethod:'CASH',referenceNumber:'SYNTHETIC',recordedBy:'Synthetic'});
+  const report = await accountingApi.getTrialBalance('September 2026');
+  assert.equal(report.items.find(i=>i.accountCode===cash.code)?.credit,10);
+  assert.equal(report.isBalanced,true);
+  assert.equal((await accountingApi.getTrialBalance('August 2026')).items.find(i=>i.accountCode===cash.code)?.credit,0);
+  assert.equal((await accountingApi.getTrialBalance('Q3 2026')).items.find(i=>i.accountCode===cash.code)?.credit,10);
+  assert.equal((await accountingApi.getTrialBalance('FY 2026')).items.find(i=>i.accountCode===cash.code)?.credit,10);
 });
 
 test('discharge billing stays disabled until approved tariffs exist', async () => {
@@ -144,7 +149,13 @@ test('billing receipts appear in reconciliation and post once to account balance
   const p = await register();
   const invoice = await billingApi.createInvoice({patientId:p.id, patientName:'Journey Synthetic', hospitalNumber:p.hospital_number, payerScheme:'Cash', items:[{description:'Synthetic service', category:'Consultation', unitPrice:100, quantity:1}]});
   const {receipt} = await billingApi.recordPayment(invoice.id, {invoiceId:invoice.id, amountPaid:100, paymentMethod:'Cash', cashierName:'QA Cashier', cashierShift:'Morning'});
-  const report = await accountingApi.getBillingReconciliation();
+  const period = receipt.paymentDate.slice(0,7) + '-01';
+  // A payment on an older invoice belongs to the payment month.
+  const stored = JSON.parse(localStorage.getItem('hims_billing_invoices_v1')!) as Array<{id:string;createdAt:string}>;
+  stored.find(item=>item.id===invoice.id)!.createdAt='2026-08-01T00:00:00Z';
+  localStorage.setItem('hims_billing_invoices_v1',JSON.stringify(stored));
+  const report = await accountingApi.getBillingReconciliation(period);
+  assert.ok((await accountingApi.getBillingReconciliation()).items.some(i=>i.billingReceiptId===receipt.id));
   const item = report.items.find(i => i.billingReceiptId === receipt.id);
   assert.ok(item, 'new receipt must be discoverable by reconciliation');
   assert.equal(item.status, 'UNPOSTED_IN_GL');
@@ -155,7 +166,8 @@ test('billing receipts appear in reconciliation and post once to account balance
   assert.equal(after.find(a=>a.code==='4010')!.balance - before.find(a=>a.code==='4010')!.balance, 100);
   await accountingApi.postReceiptToGl(item.id);
   assert.deepEqual(await accountingApi.getAccounts(), after);
-  assert.equal((await accountingApi.getBillingReconciliation()).items.find(i=>i.id===item.id)!.varianceAmount,0);
+  assert.equal((await accountingApi.getBillingReconciliation(period)).items.find(i=>i.id===item.id)!.varianceAmount,0);
+  assert.ok(!(await accountingApi.getBillingReconciliation('August 2026')).items.some(i=>i.id===item.id));
 });
 
 test('appointments reject a second booking of an occupied slot', async () => {

@@ -122,6 +122,9 @@ jobs:
       - name: Run Pytest
         env:
           TEST_DATABASE_URL: postgres://hims_app:hims_test_password@localhost:5432/hims_test?sslmode=disable
+          DATABASE_URL: postgresql://hims_app:hims_test_password@localhost:5432/hims_test?sslmode=disable
+          JWT_SECRET: synthetic_ci_jwt_secret_at_least_32_characters
+          INTERNAL_SERVICE_KEY: synthetic_ci_internal_service_key
         run: python -m pytest -v
 
   frontend-ci:

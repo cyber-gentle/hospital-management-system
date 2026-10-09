@@ -297,4 +297,3 @@ func (h *Handler) HandleTrialBalance(c *gin.Context) {
 
 	c.JSON(http.StatusOK, FinancialStatement{Accounts: balances, Total: total})
 }
-

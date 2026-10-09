@@ -13,13 +13,14 @@ import {
   IncomeStatementReport,
   TrialBalanceReport,
 } from "../types";
-import { accountingApi } from "../api";
+import { accountingApi, currentAccountingPeriod } from "../api";
 
 export const FinancialStatementsView: React.FC = () => {
   const [statementType, setStatementType] = useState<
     "TRIAL_BALANCE" | "INCOME_STATEMENT" | "BALANCE_SHEET"
   >("TRIAL_BALANCE");
-  const [period, setPeriod] = useState<string>("September 2026");
+  const currentPeriod = currentAccountingPeriod();
+  const [period, setPeriod] = useState<string>(currentPeriod);
 
   const [trialBalance, setTrialBalance] = useState<TrialBalanceReport | null>(null);
   const [incomeStatement, setIncomeStatement] = useState<IncomeStatementReport | null>(null);
@@ -105,7 +106,8 @@ export const FinancialStatementsView: React.FC = () => {
               onChange={(e) => setPeriod(e.target.value)}
               className="border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="September 2026">September 2026 (Current)</option>
+              {currentPeriod !== 'September 2026' && <option value={currentPeriod}>{currentPeriod} (Current)</option>}
+              <option value="September 2026">September 2026{currentPeriod === 'September 2026' ? ' (Current)' : ''}</option>
               <option value="August 2026">August 2026</option>
               <option value="Q3 2026">Q3 2026</option>
               <option value="FY 2026">Full Year 2026</option>

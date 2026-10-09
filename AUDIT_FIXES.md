@@ -75,3 +75,42 @@ clinical or financial schema/data need explicit approval.
 For development only, run the synthetic UI with `VITE_DEMO_MODE=true npm run dev`.
 Normal builds default to demo mode off. The new login needs a legitimately
 provisioned hospital user; no default credentials were introduced.
+
+## Branch-update regression fixes — 2026-10-08
+
+After updating main to 4f314c2, restored rejection of validation, conflict and
+throttling responses in the explicit demo fallback. Corrected accounting period
+boundaries to UTC, retained posted-ledger calculations, and covered negative
+balances through actual dated postings rather than editing the balance cache.
+Reports default to the current UTC month. Reconciliation uses payment dates,
+includes payments against older invoices, and filters both totals and displayed
+items to the selected period without discarding other months from storage.
+
+Forward migration 000019 creates all seven Python module tables and the
+Radiology status enum through the existing Go migration runner. It includes
+foreign keys, decimal monetary columns, UTC timestamps and soft-delete fields.
+No ORM schema creation or destructive rollback was added.
+
+All 11 Python mutations now require a successful Go audit acknowledgement before
+committing data. A lab request and its results are saved together. Audit failures
+roll back pending changes. Radiology now enforces a false Go authorization
+decision, including live account revocation. Soft-deleted records are excluded
+from updates; Lab and Radiology timestamp defaults use timezone-aware UTC.
+The legacy laboratory order scaffold retains its explicit audited 501 response;
+the implemented requests API is the persistence path.
+
+**Remaining transaction limit:** the Go audit HTTP write and Python SQL commit
+are separate transactions. A pre-commit SUCCESS audit entry includes
+`commit_phase: before_database_commit`; it is not proof of a completed database
+commit. A caught SQL commit failure appends a FAILURE entry when Go remains
+reachable. Process termination or an ambiguous database acknowledgement still
+needs transaction coordination/reconciliation before distributed atomicity can
+be claimed. Python never writes audit rows directly and the Go writer is unchanged.
+
+Verification: 20 frontend tests and the production build pass; Go tests pass
+with the race detector against an isolated PostgreSQL database; all 54 Python
+tests pass. The cross-service regression exercises every Python mutation with
+real Go authorization denial, real audit-key rejection and a successful audit
+write, then inspects PostgreSQL to prove denied/failed attempts changed no module
+data. The fresh database uses repository migrations exclusively. Existing bundle
+size and Python deprecation warnings remain non-fatal. Test data is synthetic.

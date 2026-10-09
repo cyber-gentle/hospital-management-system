@@ -46,11 +46,11 @@ type CreateAccountRequest struct {
 }
 
 type CreateVoucherRequest struct {
-	VoucherNumber string                `json:"voucher_number" binding:"required"`
-	Date          string                `json:"date" binding:"required"`
-	Reference     *string               `json:"reference"`
-	Description   *string               `json:"description"`
-	Entries       []CreateEntryRequest  `json:"entries" binding:"required,min=2"`
+	VoucherNumber string               `json:"voucher_number" binding:"required"`
+	Date          string               `json:"date" binding:"required"`
+	Reference     *string              `json:"reference"`
+	Description   *string              `json:"description"`
+	Entries       []CreateEntryRequest `json:"entries" binding:"required,min=2"`
 }
 
 type CreateEntryRequest struct {
@@ -71,4 +71,3 @@ type AccountBalance struct {
 	AccountName string          `json:"account_name"`
 	Balance     decimal.Decimal `json:"balance"`
 }
-

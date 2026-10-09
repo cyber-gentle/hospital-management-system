@@ -65,4 +65,3 @@ func TestSubStoreEndpoints(t *testing.T) {
 		}
 	})
 }
-

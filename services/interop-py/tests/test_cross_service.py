@@ -21,6 +21,7 @@ Run locally with::
 from __future__ import annotations
 
 import os
+import importlib
 import shutil
 import socket
 import subprocess
@@ -39,6 +40,113 @@ from clients.core_client import AuditLogPayload, CoreServiceClient, CoreServiceE
 # services/interop-py/tests/test_cross_service.py -> services/
 SERVICES_DIR = Path(__file__).resolve().parents[2]
 CORE_GO_DIR = SERVICES_DIR / "core-go"
+
+
+class RefusedAuditClient(CoreServiceClient):
+    """Real authz request, then a real audit request with a deliberately bad key."""
+
+    async def record_audit_log(self, payload: AuditLogPayload) -> bool:
+        return await CoreServiceClient(self.base_url, "synthetic-rejected-key").record_audit_log(payload)
+
+
+async def test_every_python_mutation_uses_real_authority_and_rolls_back_audit_failure(
+    core_service: CoreService, db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from main import app
+    from auth.jwt import TokenVerifier
+    from database import get_db
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    routers = [importlib.import_module(f"modules.{name}.router") for name in ("laboratory", "nhia", "radiology")]
+    database_url = core_service.database_url.replace("postgres://", "postgresql+psycopg2://", 1).replace("postgresql://", "postgresql+psycopg2://", 1)
+    engine = create_engine(database_url)
+    sessions = sessionmaker(bind=engine)
+
+    def test_session():
+        with sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = test_session
+    for router in routers:
+        app.dependency_overrides[router.verify_token] = TokenVerifier(TEST_JWT_SECRET)
+    unique = uuid.uuid4().hex
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO users (username,email,password_hash,first_name,last_name,role,department) VALUES (%s,%s,'synthetic','Synthetic','User','ADMIN','Test') RETURNING id", (unique, unique + "@example.invalid"))
+        user_id = str(cursor.fetchone()[0])
+        cursor.execute("INSERT INTO patients (hospital_number,first_name,last_name,date_of_birth,gender,address,emergency_contact_name,emergency_contact_phone,emergency_contact_relationship,payment_category) VALUES (%s,'Synthetic','Patient','1990-01-01','MALE','Synthetic','Synthetic','08000000000','Sibling','CASH') RETURNING id", (unique,))
+        patient_id = str(cursor.fetchone()[0])
+        cursor.execute("INSERT INTO invoices (invoice_number,patient_id,created_by) VALUES (%s,%s,%s) RETURNING id", (unique, patient_id, user_id))
+        invoice_id = str(cursor.fetchone()[0])
+    token = jwt.encode({"user_id": user_id, "sub": user_id, "username": unique, "role": "ADMIN", "department": "Test", "iss": "hims-core-go", "aud": "hims-clients", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
+
+    def snapshot():
+        with db.cursor() as cursor:
+            data = []
+            for table in ("lab_test_catalog", "lab_requests", "lab_results", "hmo_providers", "hmo_claims", "radiology_catalog", "radiology_requests"):
+                # Table identifiers are the fixed allowlist above, never request input.
+                cursor.execute(f"SELECT to_jsonb(t) FROM {table} t ORDER BY id")
+                data.append(cursor.fetchall())
+            return data
+
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://interop.test", headers={"Authorization": "Bearer " + token}) as client:
+            async def mutate(method: str, path: str, body: dict, action: str, expected_status: int = 200) -> dict:
+                before = snapshot()
+                for router in routers:
+                    monkeypatch.setattr(router, "core_client", core_service.client())
+                with db.cursor() as cursor:
+                    cursor.execute("UPDATE users SET is_active=false WHERE id=%s", (user_id,))
+                denied = await client.request(method, path, json=body)
+                assert denied.status_code == 403, denied.text
+                assert snapshot() == before, f"{action} changed data after authorization denial"
+                with db.cursor() as cursor:
+                    cursor.execute("UPDATE users SET is_active=true WHERE id=%s", (user_id,))
+                for router in routers:
+                    monkeypatch.setattr(router, "core_client", RefusedAuditClient(core_service.base_url, TEST_INTERNAL_KEY))
+                refused = await client.request(method, path, json=body)
+                assert refused.status_code == 503, refused.text
+                assert snapshot() == before, f"{action} changed data after an audit failure"
+                for router in routers:
+                    monkeypatch.setattr(router, "core_client", core_service.client())
+                with db.cursor() as cursor:
+                    cursor.execute("SELECT count(*) FROM audit_logs WHERE user_id=%s AND action=%s", (user_id, action))
+                    count_before = cursor.fetchone()[0]
+                response = await client.request(method, path, json=body)
+                assert response.status_code == expected_status, response.text
+                with db.cursor() as cursor:
+                    cursor.execute("SELECT count(*) FROM audit_logs WHERE user_id=%s AND action=%s AND details->>'commit_phase'='before_database_commit'", (user_id, action))
+                    assert cursor.fetchone()[0] == count_before + 1, action
+                return response.json()
+
+            catalog = await mutate("POST", "/api/v1/laboratory/catalog", {"test_code": unique, "test_name": "Synthetic", "price": "1.00"}, "CREATE_CATALOG", 201)
+            request = await mutate("POST", "/api/v1/laboratory/requests", {"patient_id": patient_id, "test_catalog_ids": [catalog["id"]]}, "CREATE_REQUEST", 201)
+            await mutate("PUT", f"/api/v1/laboratory/requests/{request['id']}/sample", {}, "UPDATE_REQUEST_STATUS")
+            with db.cursor() as cursor:
+                cursor.execute("SELECT id FROM lab_results WHERE lab_request_id=%s", (request["id"],))
+                result_id = str(cursor.fetchone()[0])
+            await mutate("PUT", f"/api/v1/laboratory/results/{result_id}/verify", {"result_value": "Synthetic"}, "VERIFY_RESULT")
+            provider = await mutate("POST", "/api/v1/nhia/providers", {"name": "Synthetic", "code": unique}, "CREATE_PROVIDER", 201)
+            claim = await mutate("POST", "/api/v1/nhia/claims", {"hmo_provider_id": provider["id"], "invoice_id": invoice_id, "patient_id": patient_id, "claim_amount": "10.00"}, "CREATE_CLAIM", 201)
+            await mutate("PUT", f"/api/v1/nhia/claims/{claim['id']}", {"status": "APPROVED", "approved_amount": "9.00"}, "UPDATE_CLAIM")
+            await mutate("POST", "/api/v1/nhia/claims/batch-update", {"claim_ids": [claim["id"]], "status": "SUBMITTED"}, "BATCH_UPDATE_CLAIMS")
+            catalog = await mutate("POST", "/api/v1/radiology/catalog", {"modality": "XRAY", "exam_name": "Synthetic", "price": "1.00"}, "CREATE_RADIOLOGY_CATALOG", 201)
+            request = await mutate("POST", "/api/v1/radiology/requests", {"patient_id": patient_id, "catalog_id": catalog["id"]}, "CREATE_RADIOLOGY_REQUEST", 201)
+            await mutate("PUT", f"/api/v1/radiology/requests/{request['id']}", {"status": "COMPLETED", "report_text": "Synthetic"}, "UPDATE_RADIOLOGY_REQUEST")
+
+            # The live Go authority denies a revoked user, even with an ADMIN JWT.
+            with db.cursor() as cursor:
+                cursor.execute("UPDATE users SET is_active=false WHERE id=%s", (user_id,))
+            before = snapshot()
+            for module in ("laboratory", "nhia", "radiology"):
+                endpoint = "providers" if module == "nhia" else "catalog"
+                assert (await client.get(f"/api/v1/{module}/{endpoint}")).status_code == 403
+                body = {"test_code": unique + "denied", "test_name": "Synthetic", "price": "1.00"} if module == "laboratory" else {"name": "Synthetic", "code": unique + "denied"} if module == "nhia" else {"modality": "XRAY", "exam_name": "Synthetic", "price": "1.00"}
+                assert (await client.post(f"/api/v1/{module}/{endpoint}", json=body)).status_code == 403
+            assert snapshot() == before
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
 
 
 async def test_user_grants_and_revocation_use_real_core_authority(core_service: CoreService, db) -> None:

@@ -65,4 +65,3 @@ func TestAccountingEndpoints(t *testing.T) {
 		}
 	})
 }
-

@@ -42,8 +42,8 @@ type RequisitionItem struct {
 }
 
 type CreateRequisitionRequest struct {
-	SubStoreID string                       `json:"sub_store_id" binding:"required"`
-	Notes      *string                      `json:"notes"`
+	SubStoreID string                         `json:"sub_store_id" binding:"required"`
+	Notes      *string                        `json:"notes"`
 	Items      []CreateRequisitionItemRequest `json:"items" binding:"required,min=1"`
 }
 
@@ -62,8 +62,7 @@ type FulfillRequisitionItemRequest struct {
 }
 
 type StockAdjustmentRequest struct {
-	ItemName string  `json:"item_name" binding:"required"`
-	Quantity int     `json:"quantity" binding:"required"` // Can be positive or negative
-	Reason   string  `json:"reason" binding:"required"`
+	ItemName string `json:"item_name" binding:"required"`
+	Quantity int    `json:"quantity" binding:"required"` // Can be positive or negative
+	Reason   string `json:"reason" binding:"required"`
 }
-

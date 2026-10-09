@@ -397,6 +397,23 @@ decision) rather than resolving it silently.
 
 ## Full project audit follow-ups (2026-10-06)
 
+### Branch-update regressions (2026-10-08)
+
+### Pre-merge review follow-ups (incoming Mortuary, Audit, HR, Inventory)
+
+- [ ] Restrict incoming module browser storage to explicit demo mode; attach backend credentials and preserve authorization/validation rejection. Reproduced production-mode HTTP 401 returning synthetic Audit, HR and Mortuary records. Inventory also has unrestricted browser-only mutations.
+- [ ] Replace Audit's unconditional `valid: true` tamper-seal result and `integrityStatus: VERIFIED` with an authoritative verification result or an explicit unavailable state. A nonexistent log currently passes verification.
+- [ ] Validate Inventory issuance quantities and available stock before saving; preserve pending/partial/rejected goods receipt outcomes and prevent duplicate stock posting. Reproduced quantity -1 increasing stock by 1; source marks every goods receipt PO fulfilled regardless of acceptance or completeness.
+- [ ] Enforce Mortuary release eligibility on the backend; the current browser fallback sets financial clearance true during release without checking authoritative payment or coroner clearance.
+- [ ] Resolve combined App.tsx/FRONTEND_STATUS.md conflicts while retaining all module routes; reconcile fix/audit-integration-routing's nursing handler/model conflicts with current safety fixes. Preserve original commits/authors and include the outstanding local remediation patch.
+- [ ] Add module business-logic and production-rejection tests before merge. All four incoming branches build individually with the installed frontend dependencies; this does not establish backend readiness. Go currently registers no backend routes for these four modules.
+
+- [x] Restore frontend validation rejection, UTC period selection, ledger-based negative-balance coverage, and payment-date reconciliation (FR-GL-04, FR-GL-05). Default reports use the current UTC month; historical monthly, quarterly and calendar-year selections retain their boundaries.
+- [x] Add Go-owned migration 000019 for Python Laboratory, NHIA/HMO and Radiology tables; verify a fresh PostgreSQL database without ORM schema creation.
+- [x] Require successful Go authorization and audit acknowledgement before Python commits; roll back audit failures and partial lab requests. Exercise all 11 mutating Python routes against the real Go APIs, including live-user revocation and audit-key rejection.
+- [x] Reconcile Python regression fixtures with the current API/schema and document the separate HTTP/SQL commit limitation in AUDIT_FIXES.md.
+- [ ] Make Python data and audit outcomes atomic across services, including process termination and ambiguous commit outcomes. The current acknowledgement-before-commit fix prevents audit outages from persisting unlogged mutations, but does not provide distributed atomicity.
+
 - [x] Complete full project source audit, branch integration review, builds/tests, dependency scans, and isolated synthetic reproductions. See `PROJECT_AUDIT.md` for scope, evidence, 31 findings, and verification limits.
 - [x] A01–A04: Contain wallet webhooks by disabling them until provider selection; add positive-money constraints, module RBAC, atomic data/audit transactions, and real PostgreSQL failure/denial tests. Owner approved transaction support in the existing writer; original behavior/tests retained.
 - [x] A05–A07, A17–A18: Integrate reviewed Group 1 backend branches, align successful frontend/API contracts and container routing, and separate demo/local fallback behavior from authoritative clinical and financial actions.

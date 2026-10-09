@@ -65,4 +65,3 @@ func TestAppointmentEndpoints(t *testing.T) {
 		}
 	})
 }
-

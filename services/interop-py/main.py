@@ -70,6 +70,71 @@ app.include_router(radiology_router)
 
 
 
+# Demonstration endpoint showing mandatory RBAC check and audit log recording via core_client
+class SampleLabOrder(BaseModel):
+    order_id: str
+    patient_id: str
+    test_code: str
+
+
+@app.post("/api/v1/laboratory/orders", status_code=status.HTTP_201_CREATED)
+async def create_laboratory_order(
+    order: SampleLabOrder,
+    user: TokenClaims = Depends(verify_token),
+) -> Dict[str, Any]:
+    # 1. Authoritative RBAC check via Go core. An unreachable authority is a
+    #    503, never a silent allow.
+    try:
+        is_allowed = await core_client.check_authorization(
+            role=user.role,
+            module="laboratory",
+            action="create_order",
+            user_id=user.user_id,
+        )
+    except CoreServiceError as err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authorization service unavailable",
+        ) from err
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: role is not authorized for laboratory:create_order",
+        )
+
+    # 2. Mutating action: mandatory call to Go's /internal/audit-log. If the
+    #    entry cannot be recorded the action is not reported as successful.
+    audit_entry = AuditLogPayload(
+        user_id=user.user_id,
+        user_name=user.username,
+        user_role=user.role,
+        module="laboratory",
+        action="LAB_ORDER_UNAVAILABLE",
+        resource_type="LabOrder",
+        resource_id=order.order_id,
+        details={
+            "patient_id": order.patient_id,
+            "test_code": order.test_code,
+        },
+        status="FAILURE",
+    )
+    try:
+        await core_client.record_audit_log(audit_entry)
+    except CoreServiceError as err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Audit logging unavailable; the action was not completed",
+        ) from err
+
+    # This legacy order contract is unsupported; use the laboratory requests API. Record the unsuccessful
+    # attempt through Go and refuse it instead of reporting a fictitious order.
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Laboratory order persistence is not implemented; no order was created",
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
 

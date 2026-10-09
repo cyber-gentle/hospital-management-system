@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from auth.jwt import TokenClaims, TokenVerifier
+from clients.audited_transaction import commit_audited
 from clients.core_client import AuditLogPayload, CoreServiceClient, CoreServiceError
 from config import get_settings
 from database import get_db
@@ -19,7 +20,7 @@ core_client = CoreServiceClient(
     internal_key=settings.internal_service_key,
 )
 
-async def check_permissions(user: TokenClaims, action: str):
+async def check_permissions(user: TokenClaims, action: str) -> None:
     try:
         is_allowed = await core_client.check_authorization(
             role=user.role,
@@ -39,7 +40,7 @@ async def check_permissions(user: TokenClaims, action: str):
             detail=f"Forbidden: role is not authorized for nhia:{action}",
         )
 
-async def log_audit(user: TokenClaims, action: str, resource_type: str, resource_id: str, status_msg: str, details: dict):
+async def log_audit(db: Session, user: TokenClaims, action: str, resource_type: str, resource_id: str, status_msg: str, details: dict[str, object]) -> None:
     audit_entry = AuditLogPayload(
         user_id=user.user_id,
         user_name=user.username,
@@ -52,7 +53,7 @@ async def log_audit(user: TokenClaims, action: str, resource_type: str, resource
         status=status_msg,
     )
     try:
-        await core_client.record_audit_log(audit_entry)
+        await commit_audited(db, core_client, audit_entry)
     except CoreServiceError as err:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -69,10 +70,10 @@ async def create_hmo_provider(
     
     db_provider = models.HMOProvider(**provider.model_dump())
     db.add(db_provider)
-    db.commit()
+    db.flush()
     db.refresh(db_provider)
     
-    await log_audit(user, "CREATE_PROVIDER", "HMOProvider", str(db_provider.id), "SUCCESS", provider.model_dump(mode="json"))
+    await log_audit(db, user, "CREATE_PROVIDER", "HMOProvider", str(db_provider.id), "SUCCESS", provider.model_dump(mode="json"))
     return db_provider
 
 @router.get("/providers", response_model=List[schemas.HMOProviderResponse])
@@ -96,10 +97,10 @@ async def create_hmo_claim(
         created_by=uuid.UUID(user.user_id)
     )
     db.add(db_claim)
-    db.commit()
+    db.flush()
     db.refresh(db_claim)
     
-    await log_audit(user, "CREATE_CLAIM", "HMOClaim", str(db_claim.id), "SUCCESS", {"claim_amount": str(claim.claim_amount)})
+    await log_audit(db, user, "CREATE_CLAIM", "HMOClaim", str(db_claim.id), "SUCCESS", {"claim_amount": str(claim.claim_amount)})
     return db_claim
 
 @router.put("/claims/{claim_id}", response_model=schemas.HMOClaimResponse)
@@ -111,7 +112,7 @@ async def update_hmo_claim_status(
 ):
     await check_permissions(user, "write")
     
-    db_claim = db.query(models.HMOClaim).filter(models.HMOClaim.id == claim_id).first()
+    db_claim = db.query(models.HMOClaim).filter(models.HMOClaim.id == claim_id, models.HMOClaim.deleted_at.is_(None)).with_for_update().first()
     if not db_claim:
         raise HTTPException(status_code=404, detail="Claim not found")
         
@@ -124,11 +125,11 @@ async def update_hmo_claim_status(
     elif claim_update.status in ["APPROVED", "REJECTED", "PARTIAL"] and db_claim.response_date is None:
         db_claim.response_date = datetime.now(timezone.utc)
         
-    db.commit()
+    db.flush()
     db.refresh(db_claim)
     
     audit_details = {k: str(v) if v is not None else None for k, v in update_data.items()}
-    await log_audit(user, "UPDATE_CLAIM", "HMOClaim", str(db_claim.id), "SUCCESS", audit_details)
+    await log_audit(db, user, "UPDATE_CLAIM", "HMOClaim", str(db_claim.id), "SUCCESS", audit_details)
     return db_claim
 
 @router.post("/claims/batch-update", status_code=status.HTTP_200_OK)
@@ -139,7 +140,7 @@ async def batch_update_claims(
 ):
     await check_permissions(user, "write")
     
-    claims = db.query(models.HMOClaim).filter(models.HMOClaim.id.in_(batch_update.claim_ids)).all()
+    claims = db.query(models.HMOClaim).filter(models.HMOClaim.id.in_(batch_update.claim_ids), models.HMOClaim.deleted_at.is_(None)).with_for_update().all()
     if not claims:
         raise HTTPException(status_code=404, detail="No valid claims found")
         
@@ -156,11 +157,10 @@ async def batch_update_claims(
             
         updated_ids.append(str(claim.id))
             
-    db.commit()
+    db.flush()
     
     await log_audit(
-        user, "BATCH_UPDATE_CLAIMS", "HMOClaim", "batch", "SUCCESS", 
+        db, user, "BATCH_UPDATE_CLAIMS", "HMOClaim", "batch", "SUCCESS",
         {"updated_claims": updated_ids, "new_status": batch_update.status}
     )
     return {"status": "success", "updated_count": len(updated_ids)}
-

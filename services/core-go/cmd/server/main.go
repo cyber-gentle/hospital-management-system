@@ -18,8 +18,12 @@ import (
 	"hospital-hims/services/core-go/internal/internalapi"
 	"hospital-hims/services/core-go/internal/modules/accounting"
 	"hospital-hims/services/core-go/internal/modules/appointment"
+	"hospital-hims/services/core-go/internal/modules/audit"
 	"hospital-hims/services/core-go/internal/modules/billing"
+	"hospital-hims/services/core-go/internal/modules/hr"
+	"hospital-hims/services/core-go/internal/modules/inventory"
 	"hospital-hims/services/core-go/internal/modules/medicalrecords"
+	"hospital-hims/services/core-go/internal/modules/mortuary"
 	"hospital-hims/services/core-go/internal/modules/nursing"
 	"hospital-hims/services/core-go/internal/modules/pharmacy"
 	"hospital-hims/services/core-go/internal/modules/substore"
@@ -140,6 +144,10 @@ func main() {
 			// Initialize Sub-store Module
 			ssHandler := substore.NewHandler(db.DB, auditWriter, tokens)
 			ssHandler.RegisterRoutes(apiV1)
+			hr.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
+			inventory.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
+			mortuary.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
+			audit.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
 		}
 	}
 

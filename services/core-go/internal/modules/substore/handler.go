@@ -280,4 +280,3 @@ func (h *Handler) HandleAdjustStock(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Stock adjusted successfully", "new_stock": newStock})
 }
-
