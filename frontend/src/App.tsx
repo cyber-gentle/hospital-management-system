@@ -15,6 +15,7 @@ import { PharmacyView } from "./modules/pharmacy/PharmacyView";
 import { AppointmentsView } from "./modules/appointments/AppointmentsView";
 import { AccountingView } from "./modules/accounting/AccountingView";
 import { SubstoreView } from "./modules/substore/SubstoreView";
+import { NhiaClaimsView } from "./modules/nhiaclaims/NhiaClaimsView";
 import { GopdView } from "./modules/gopd/GopdView";
 import { LaboratoryView } from "./modules/laboratory/LaboratoryView";
 import BillingDesignPreview from "./BillingDesignPreview";
@@ -252,6 +253,8 @@ const Dashboard: React.FC = () => {
           <AccountingView />
         ) : activeModule === "substore" ? (
           <SubstoreView />
+        ) : activeModule === "nhia" ? (
+          <NhiaClaimsView />
         ) : activeModule === "laboratory" ? (
           <LaboratoryView />
         ) : (
@@ -327,6 +330,7 @@ const Dashboard: React.FC = () => {
                     mod.id === "appointments" ||
                     mod.id === "accounting" ||
                     mod.id === "substore" ||
+                    mod.id === "nhia" ||
                     mod.id === "laboratory";
                   return (
                     <div
