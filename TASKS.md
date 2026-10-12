@@ -358,7 +358,7 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
   - [x] FR-SEC-01: Global Configuration API
   - [x] FR-SEC-02: RBAC Management API
   - [x] FR-SEC-03: User Provisioning API
-- [ ] Internal QA pass on full 20-module system (no hospital sign-off yet)
+- [x] Internal QA pass on full 20-module system (no hospital sign-off yet)
 
 ## 5. First Hospital Engagement (only after all 20 modules pass internal QA)
 
