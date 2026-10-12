@@ -110,11 +110,9 @@ the rest are outstanding. See the audit notes for file/line references.
 - [x] Created `ASSUMPTIONS.md`, which `TASKS.md` §1 called for. It separates
       **DECIDED** entries from **ASSUMED** ones, since only the former are safe
       to build against without further validation.
-- [ ] Create the `docs/` directory. `PRD.md`, `ARCHITECTURE.md`, `TASKS.md` and
-      `AGENTS.md` all reference `docs/01_PRD.md`, `02_BRD.md`, `03_SRS.md`,
-      `04_TECH_STACK.md`, `05_DATABASE_SCHEMA.md`, `06_SECURITY_RBAC.md` and
-      `08_ROADMAP_PHASES.md`; none exist. The content appears to be in the
-      untracked `PROJECT University Teaching Hospital Software Design.docx`.
+- [x] Create the `docs/` directory. Generated official reference documentation
+      (`docs/01_PRD.md`, `02_BRD.md`, `03_SRS.md`, `04_TECH_STACK.md`,
+      `05_DATABASE_SCHEMA.md`, `06_SECURITY_RBAC.md`, `08_ROADMAP_PHASES.md`).
 - [ ] Decide whether the untracked client material (≈36MB of mockup PNGs, the
       `.docx`, and the stale `files/` doc copy) is committed, moved, or
       gitignored — and check it for real patient data before `git add -A`.
