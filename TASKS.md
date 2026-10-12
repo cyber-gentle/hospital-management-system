@@ -362,7 +362,7 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 
 ## 5. First Hospital Engagement (only after all 20 modules pass internal QA)
 
-- [ ] Demo-ready build of the complete system with synthetic data
+- [x] Demo-ready build of the complete system with synthetic data
 - [ ] Approach target hospital with the full working system (not a partial one)
 - [ ] Interviews with department heads to validate the assumptions logged in §1
 - [ ] Resolve every open `[VALIDATE WITH HOSPITAL]`/`[UNRESOLVED]` item against real answers
