@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -106,12 +107,22 @@ func (h *Handler) HandleAuthzCheck(c *gin.Context) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
 			return
 		}
-		if err := h.db.QueryRowContext(c.Request.Context(), `SELECT role FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL`, userID).Scan(&role); err != nil {
+		version, parseErr := strconv.Atoi(c.DefaultQuery("token_version", "0"))
+		if parseErr != nil || version < 0 {
+			c.JSON(400, gin.H{"error": "Invalid session version"})
+			return
+		}
+		var currentVersion int
+		if err := h.db.QueryRowContext(c.Request.Context(), `SELECT role,token_version FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL`, userID).Scan(&role, &currentVersion); err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusOK, gin.H{"allowed": false, "reason": "Inactive or unavailable account"})
 				return
 			}
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+			return
+		}
+		if version != currentVersion {
+			c.JSON(200, gin.H{"allowed": false, "reason": "Session revoked"})
 			return
 		}
 	}

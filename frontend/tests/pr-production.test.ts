@@ -1,3 +1,5 @@
+import { liveAdminApi } from '../src/modules/admin/liveApi';
+import { radiologyApi } from '../src/modules/radiology/api';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { hrApi } from '../src/modules/hr/api';
@@ -23,6 +25,13 @@ beforeEach(() => {
  }});
 });
 const requests: Array<() => Promise<unknown>> = [
+ () => liveAdminApi.directory(),
+ () => liveAdminApi.resetPassword("staff","Synthetic replacement password","Synthetic recovery"),
+ () => liveAdminApi.reactivate("staff","Synthetic approval"),
+ () => liveAdminApi.create({username:'synthetic',email:'synthetic@example.invalid',firstName:'Synthetic',lastName:'Staff',role:'AUDITOR',department:'Test',password:'Synthetic test only'}),
+ () => liveAdminApi.grant('staff','reporting:read'), () => liveAdminApi.revoke('staff','reporting:read'),
+ () => radiologyApi.catalog(), () => radiologyApi.requests(), () => radiologyApi.create('patient','exam'), () => radiologyApi.saveReport('study','COMPLETED','Synthetic'),
+ () => nhiaApi.getProviders(), () => nhiaApi.getClaims(),
  () => hrApi.getStaff(), () => hrApi.getStaffById('synthetic'),
  () => hrApi.createStaff(INITIAL_STAFF[0]!), () => hrApi.updateStaff('synthetic',{designation:'Synthetic'}),
  () => hrApi.getDutyRoster(), () => hrApi.createShift(INITIAL_SHIFTS[0]!),
@@ -71,7 +80,7 @@ test('preview workflows never issue production requests or change browser data',
   ()=>emergencyApi.assignPatientBed('synthetic','synthetic','1'),()=>emergencyApi.releasePatientBed('synthetic'),
   ()=>maternityApi.getAncProfiles(),()=>maternityApi.updateAncStatus('synthetic','ANC_ACTIVE'),
   ()=>theatreApi.getBookings(),()=>theatreApi.updateStatus('synthetic','SCHEDULED'),
-  ()=>nhiaApi.getProviders(),()=>nhiaApi.getClaims(),()=>nhiaApi.checkEligibility('synthetic'),
+  ()=>nhiaApi.checkEligibility('synthetic'),
   ()=>nhiaApi.submitClaim({}),()=>inventoryApi.updateItemStock('synthetic',10),
  ]) await assert.rejects(request(),/unavailable until/);
  assert.deepEqual(writes,[]);
@@ -100,5 +109,60 @@ test('audit filters are forwarded and unavailable verification is never valid',a
  assert.deepEqual(await auditApi.getAuditLogs({startDate:'2026-10-01',endDate:'2026-10-09',onlyAnomalies:true,actionCategory:'FINANCIAL'}),[]);
  globalThis.fetch=async()=>new Response(JSON.stringify({error:'Seal not configured',valid:false}),{status:501});
  await assert.rejects(auditApi.verifyAuditTamperSeal('synthetic'));
+ assert.deepEqual(writes,[]);
+});
+
+test('live NHIA reads preserve exact claim amounts and do not invent invoice totals',async()=>{
+ globalThis.fetch=async(input,init)=>{
+  assert.equal(new Headers(init?.headers).get('Authorization'),'Bearer synthetic-user-token');
+  const url=String(input);
+  if(url.endsWith('/providers')) return new Response(JSON.stringify([{id:'provider',name:'Synthetic HMO',code:'SYNTHETIC',is_active:false}]),{status:200});
+  assert.ok(url.endsWith('/claims?limit=100&offset=100'));
+  return new Response(JSON.stringify([{id:'claim',patient_id:'patient',invoice_id:'invoice',hmo_provider_id:'provider',claim_amount:'1234567890.12',claim_reference:null,status:'PENDING',created_at:'2026-10-15T00:00:00Z',updated_at:'2026-10-15T00:00:00Z'}]),{status:200});
+ };
+ assert.equal((await nhiaApi.getProviders())[0]!.active,false);
+ const claim=(await nhiaApi.getClaims(100))[0]!;
+ assert.equal(claim.claimAmount,'1234567890.12');assert.equal(claim.invoiceId,'invoice');
+ assert.equal(claim.totalAmount,null);assert.equal(claim.coPayAmount,null);
+ assert.equal(claim.nhiaNumber,'');assert.equal(claim.diagnosis,'');assert.deepEqual(writes,[]);
+ await assert.rejects(nhiaApi.getClaims(-1),/Invalid claims page/);
+});
+
+test('radiology report saves use the authenticated route without a client author identity',async()=>{
+ globalThis.fetch=async(input,init)=>{
+  assert.equal(String(input),'/api/v1/radiology/requests/study');
+  assert.equal(init?.method,'PUT');
+  assert.deepEqual(JSON.parse(String(init?.body)),{status:'COMPLETED',report_text:'Synthetic report'});
+  return new Response(JSON.stringify({id:'study',report_text:'Synthetic report',radiologist_id:'server-author'}),{status:200});
+ };
+ assert.equal((await radiologyApi.saveReport('study','COMPLETED','Synthetic report')).radiologist_id,'server-author');
+ assert.deepEqual(writes,[]);
+});
+
+test('administration respects server-managed authority and never persists passwords in the browser',async()=>{
+ const input={username:'synthetic',email:'synthetic@example.invalid',firstName:'Synthetic',lastName:'Staff',role:'AUDITOR',department:'Test',password:'Synthetic test only'};
+ globalThis.fetch=async(url,init)=>{
+  assert.equal(String(url),'/api/v1/admin/users');assert.equal(init?.method,'POST');
+  assert.deepEqual(JSON.parse(String(init?.body)),input);
+  return new Response(JSON.stringify({id:'server-staff',username:'synthetic',role:'AUDITOR'}),{status:201});
+ };
+ await liveAdminApi.create(input);assert.deepEqual(writes,[]);
+ globalThis.fetch=async()=>new Response(JSON.stringify({users:[],permissions:[],roleGrants:[],userGrants:[],canManage:false}),{status:200});
+ assert.equal((await liveAdminApi.directory()).canManage,false);
+});
+
+test('account recovery sends explicit values without saving passwords in browser storage',async()=>{
+ const calls: Array<{url:string;body:unknown}> = [];
+ globalThis.fetch=async(url,init)=>{
+  calls.push({url:String(url),body:JSON.parse(String(init?.body))});
+  assert.equal(init?.method,'POST');
+  return new Response(JSON.stringify({id:'staff',sessionsRevoked:true}),{status:200});
+ };
+ await liveAdminApi.resetPassword('staff','Synthetic password only','Synthetic recovery');
+ await liveAdminApi.reactivate('staff','Synthetic reactivation');
+ assert.deepEqual(calls,[
+  {url:'/api/v1/admin/users/staff/reset-password',body:{password:'Synthetic password only',reason:'Synthetic recovery'}},
+  {url:'/api/v1/admin/users/staff/reactivate',body:{reason:'Synthetic reactivation'}},
+ ]);
  assert.deepEqual(writes,[]);
 });

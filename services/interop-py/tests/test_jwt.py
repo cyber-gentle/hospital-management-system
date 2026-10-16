@@ -137,3 +137,14 @@ def test_rejects_invalid_identity(verifier: TokenVerifier, overrides: dict[str, 
     with pytest.raises(HTTPException) as exc:
         verifier(credentials(make_token(**overrides)))
     assert exc.value.status_code == 401
+
+def test_session_version_and_legacy_tokens(verifier: TokenVerifier) -> None:
+    assert verifier(credentials(make_token())).token_version == 0
+    assert verifier(credentials(make_token(token_version=3))).token_version == 3
+
+
+@pytest.mark.parametrize("version", [-1, "1", 1.5, True, None])
+def test_invalid_session_version(verifier: TokenVerifier, version: object) -> None:
+    with pytest.raises(HTTPException) as exc:
+        verifier(credentials(make_token(token_version=version)))
+    assert exc.value.status_code == 401

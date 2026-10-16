@@ -119,3 +119,26 @@ func TestValidateRejectsExpiredToken(t *testing.T) {
 		t.Errorf("expected an expiry error, got %v", err)
 	}
 }
+
+func TestSessionVersionsAndLegacyToken(t *testing.T) {
+	s := testTokenService()
+	token, err := s.GenerateVersion("synthetic", "Synthetic", "ADMIN", "Test", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := s.Validate(token)
+	if err != nil || claims.TokenVersion != 3 {
+		t.Fatalf("Version lost: %v", err)
+	}
+	if _, err := s.GenerateVersion("synthetic", "Synthetic", "ADMIN", "Test", -1); err == nil {
+		t.Fatal("Negative generation accepted")
+	}
+	legacy, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"user_id": "synthetic", "sub": "synthetic", "role": "ADMIN", "iss": tokenIssuer, "aud": "hims-clients", "exp": time.Now().Add(time.Hour).Unix()}).SignedString(s.secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err = s.Validate(legacy)
+	if err != nil || claims.TokenVersion != 0 {
+		t.Fatalf("Legacy token must be generation zero: %v", err)
+	}
+}

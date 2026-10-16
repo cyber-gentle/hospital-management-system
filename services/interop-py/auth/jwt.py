@@ -32,6 +32,7 @@ class TokenClaims(BaseModel):
     username: str
     role: str
     department: str
+    token_version: int = 0
 
 
 class TokenVerifier:
@@ -70,6 +71,9 @@ class TokenVerifier:
                 audience=EXPECTED_AUDIENCE,
                 options={"require": ["exp", "iss", "aud"]},
             )
+            version = payload.get("token_version", 0)
+            if type(version) is not int or version < 0:
+                raise jwt.InvalidTokenError("Invalid session version")
             identity = payload.get("user_id") or payload.get("sub", "")
             if not identity or not payload.get("role"):
                 raise jwt.InvalidTokenError("Token identity and role are required")
@@ -93,4 +97,5 @@ class TokenVerifier:
             username=payload.get("username", ""),
             role=payload.get("role", ""),
             department=payload.get("department", ""),
+            token_version=version,
         )

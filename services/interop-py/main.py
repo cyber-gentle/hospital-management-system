@@ -90,6 +90,7 @@ async def create_laboratory_order(
             module="laboratory",
             action="create_order",
             user_id=user.user_id,
+            token_version=user.token_version,
         )
     except CoreServiceError as err:
         raise HTTPException(

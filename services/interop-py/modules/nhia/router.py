@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from auth.jwt import TokenClaims, TokenVerifier
@@ -27,6 +27,7 @@ async def check_permissions(user: TokenClaims, action: str) -> None:
             module="nhia",
             action=action,
             user_id=user.user_id,
+            token_version=user.token_version,
         )
     except CoreServiceError as err:
         raise HTTPException(
@@ -164,3 +165,21 @@ async def batch_update_claims(
         {"updated_claims": updated_ids, "new_status": batch_update.status}
     )
     return {"status": "success", "updated_count": len(updated_ids)}
+
+
+@router.get("/claims", response_model=List[schemas.HMOClaimResponse])
+async def list_hmo_claims(
+    patient_id: uuid.UUID | None = None,
+    hmo_provider_id: uuid.UUID | None = None,
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: TokenClaims = Depends(verify_token),
+) -> list[models.HMOClaim]:
+    await check_permissions(user, "read")
+    query = db.query(models.HMOClaim).filter(models.HMOClaim.deleted_at.is_(None))
+    if patient_id is not None:
+        query = query.filter(models.HMOClaim.patient_id == patient_id)
+    if hmo_provider_id is not None:
+        query = query.filter(models.HMOClaim.hmo_provider_id == hmo_provider_id)
+    return query.order_by(models.HMOClaim.created_at.desc(), models.HMOClaim.id.desc()).offset(offset).limit(limit).all()

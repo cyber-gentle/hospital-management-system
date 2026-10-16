@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -17,16 +18,21 @@ import (
 	"hospital-hims/services/core-go/internal/database"
 	"hospital-hims/services/core-go/internal/internalapi"
 	"hospital-hims/services/core-go/internal/modules/accounting"
+	"hospital-hims/services/core-go/internal/modules/admin"
+	"hospital-hims/services/core-go/internal/modules/ae"
 	"hospital-hims/services/core-go/internal/modules/appointment"
 	"hospital-hims/services/core-go/internal/modules/audit"
 	"hospital-hims/services/core-go/internal/modules/billing"
 	"hospital-hims/services/core-go/internal/modules/hr"
 	"hospital-hims/services/core-go/internal/modules/inventory"
+	"hospital-hims/services/core-go/internal/modules/maternity"
 	"hospital-hims/services/core-go/internal/modules/medicalrecords"
 	"hospital-hims/services/core-go/internal/modules/mortuary"
 	"hospital-hims/services/core-go/internal/modules/nursing"
 	"hospital-hims/services/core-go/internal/modules/pharmacy"
+	"hospital-hims/services/core-go/internal/modules/reporting"
 	"hospital-hims/services/core-go/internal/modules/substore"
+	"hospital-hims/services/core-go/internal/modules/theatre"
 )
 
 func main() {
@@ -107,7 +113,11 @@ func main() {
 		apiV1.POST("/auth/login", loginHandler.Handle)
 
 		// Protected routes.
-		apiV1.GET("/auth/me", auth.AuthRequired(tokens), func(c *gin.Context) {
+		var sessionDB *sql.DB
+		if db != nil {
+			sessionDB = db.DB
+		}
+		apiV1.GET("/auth/me", auth.AuthRequired(tokens), auth.RequireActiveSession(sessionDB), func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"user_id":    c.GetString(auth.ContextUserID),
 				"username":   c.GetString(auth.ContextUsername),
@@ -144,6 +154,11 @@ func main() {
 			// Initialize Sub-store Module
 			ssHandler := substore.NewHandler(db.DB, auditWriter, tokens)
 			ssHandler.RegisterRoutes(apiV1)
+			theatre.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
+			reporting.NewHandler(db.DB, tokens).RegisterRoutes(apiV1)
+			admin.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
+			ae.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
+			maternity.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
 			hr.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
 			inventory.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)
 			mortuary.NewHandler(db.DB, auditWriter, tokens).RegisterRoutes(apiV1)

@@ -1,3 +1,4 @@
+import { LiveRadiologyView } from "./LiveRadiologyView";
 import { DEMO_MODE, requireDemoMode } from "../../lib/demo";
 import { ModuleAvailability } from "../../components/ModuleAvailability";
 import React, { useState } from "react";
@@ -95,7 +96,7 @@ export const RadiologyView: React.FC<RadiologyViewProps> = ({ onBackToDashboard 
     setActiveTab("completed");
   };
 
-  if (!DEMO_MODE) return <ModuleAvailability name="Radiology" reason="Imaging requests and reports are not connected to this screen yet." />;
+  if (!DEMO_MODE) return <><LiveRadiologyView onBackToDashboard={onBackToDashboard} /><ModuleAvailability name="PACS upload" reason="An imaging archive provider and upload contract have not been configured." /></>;
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}

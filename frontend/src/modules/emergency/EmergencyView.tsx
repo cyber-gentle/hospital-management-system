@@ -1,3 +1,5 @@
+import { DEMO_MODE } from '../../lib/demo';
+import { ClinicalRecordView } from '../../components/ClinicalRecordView';
 import React, { useState, useEffect } from 'react';
 import {
   Siren,
@@ -19,7 +21,7 @@ import { RapidTriageModal } from './components/RapidTriageModal';
 import { EmergencyBedBoardModal } from './components/EmergencyBedBoardModal';
 import { StabilizationNotesModal } from './components/StabilizationNotesModal';
 
-export const EmergencyView: React.FC = () => {
+const EmergencyViewDemo: React.FC = () => {
   const [patients, setPatients] = useState<EmergencyPatient[]>([]);
   const [bays, setBays] = useState<EmergencyBay[]>([]);
   const [notes, setNotes] = useState<StabilizationNote[]>([]);
@@ -674,3 +676,5 @@ export const EmergencyView: React.FC = () => {
     </div>
   );
 };
+
+export const EmergencyView: React.FC = () => DEMO_MODE ? <EmergencyViewDemo /> : <ClinicalRecordView module="emergency" title="Emergency records" />;
