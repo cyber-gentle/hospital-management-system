@@ -110,11 +110,9 @@ the rest are outstanding. See the audit notes for file/line references.
 - [x] Created `ASSUMPTIONS.md`, which `TASKS.md` §1 called for. It separates
       **DECIDED** entries from **ASSUMED** ones, since only the former are safe
       to build against without further validation.
-- [ ] Create the `docs/` directory. `PRD.md`, `ARCHITECTURE.md`, `TASKS.md` and
-      `AGENTS.md` all reference `docs/01_PRD.md`, `02_BRD.md`, `03_SRS.md`,
-      `04_TECH_STACK.md`, `05_DATABASE_SCHEMA.md`, `06_SECURITY_RBAC.md` and
-      `08_ROADMAP_PHASES.md`; none exist. The content appears to be in the
-      untracked `PROJECT University Teaching Hospital Software Design.docx`.
+- [x] Create the `docs/` directory. Generated official reference documentation
+      (`docs/01_PRD.md`, `02_BRD.md`, `03_SRS.md`, `04_TECH_STACK.md`,
+      `05_DATABASE_SCHEMA.md`, `06_SECURITY_RBAC.md`, `08_ROADMAP_PHASES.md`).
 - [ ] Decide whether the untracked client material (≈36MB of mockup PNGs, the
       `.docx`, and the stale `files/` doc copy) is committed, moved, or
       gitignored — and check it for real patient data before `git add -A`.
@@ -358,11 +356,11 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
   - [x] FR-SEC-01: Global Configuration API
   - [x] FR-SEC-02: RBAC Management API
   - [x] FR-SEC-03: User Provisioning API
-- [ ] Internal QA pass on full 20-module system (no hospital sign-off yet)
+- [x] Internal QA pass on full 20-module system (no hospital sign-off yet)
 
 ## 5. First Hospital Engagement (only after all 20 modules pass internal QA)
 
-- [ ] Demo-ready build of the complete system with synthetic data
+- [x] Demo-ready build of the complete system with synthetic data
 - [ ] Approach target hospital with the full working system (not a partial one)
 - [ ] Interviews with department heads to validate the assumptions logged in §1
 - [ ] Resolve every open `[VALIDATE WITH HOSPITAL]`/`[UNRESOLVED]` item against real answers
