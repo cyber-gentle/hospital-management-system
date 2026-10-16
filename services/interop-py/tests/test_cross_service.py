@@ -102,6 +102,13 @@ async def test_every_python_mutation_uses_real_authority_and_rolls_back_audit_fa
                 assert snapshot() == before, f"{action} changed data after authorization denial"
                 with db.cursor() as cursor:
                     cursor.execute("UPDATE users SET is_active=true WHERE id=%s", (user_id,))
+                with db.cursor() as cursor:
+                    cursor.execute("UPDATE users SET token_version=1 WHERE id=%s", (user_id,))
+                revoked = await client.request(method, path, json=body)
+                assert revoked.status_code == 403, revoked.text
+                assert snapshot() == before, f"{action} changed data after session revocation"
+                with db.cursor() as cursor:
+                    cursor.execute("UPDATE users SET token_version=0 WHERE id=%s", (user_id,))
                 for router in routers:
                     monkeypatch.setattr(router, "core_client", RefusedAuditClient(core_service.base_url, TEST_INTERNAL_KEY))
                 refused = await client.request(method, path, json=body)
@@ -128,11 +135,31 @@ async def test_every_python_mutation_uses_real_authority_and_rolls_back_audit_fa
             await mutate("PUT", f"/api/v1/laboratory/results/{result_id}/verify", {"result_value": "Synthetic"}, "VERIFY_RESULT")
             provider = await mutate("POST", "/api/v1/nhia/providers", {"name": "Synthetic", "code": unique}, "CREATE_PROVIDER", 201)
             claim = await mutate("POST", "/api/v1/nhia/claims", {"hmo_provider_id": provider["id"], "invoice_id": invoice_id, "patient_id": patient_id, "claim_amount": "10.00"}, "CREATE_CLAIM", 201)
+            history = await client.get("/api/v1/nhia/claims", params={"patient_id":patient_id,"hmo_provider_id":provider["id"]})
+            assert history.status_code == 200, history.text
+            assert any(record["id"] == claim["id"] and record["claim_amount"] == "10.00" for record in history.json())
+            assert (await client.get("/api/v1/nhia/claims", headers={"Authorization":""})).status_code == 401
+            with db.cursor() as cursor:
+                cursor.execute("UPDATE users SET is_active=false WHERE id=%s", (user_id,))
+            assert (await client.get("/api/v1/nhia/claims")).status_code == 403
+            with db.cursor() as cursor:
+                cursor.execute("UPDATE users SET is_active=true WHERE id=%s", (user_id,))
             await mutate("PUT", f"/api/v1/nhia/claims/{claim['id']}", {"status": "APPROVED", "approved_amount": "9.00"}, "UPDATE_CLAIM")
             await mutate("POST", "/api/v1/nhia/claims/batch-update", {"claim_ids": [claim["id"]], "status": "SUBMITTED"}, "BATCH_UPDATE_CLAIMS")
             catalog = await mutate("POST", "/api/v1/radiology/catalog", {"modality": "XRAY", "exam_name": "Synthetic", "price": "1.00"}, "CREATE_RADIOLOGY_CATALOG", 201)
             request = await mutate("POST", "/api/v1/radiology/requests", {"patient_id": patient_id, "catalog_id": catalog["id"]}, "CREATE_RADIOLOGY_REQUEST", 201)
             await mutate("PUT", f"/api/v1/radiology/requests/{request['id']}", {"status": "COMPLETED", "report_text": "Synthetic"}, "UPDATE_RADIOLOGY_REQUEST")
+            history = await client.get("/api/v1/radiology/requests", params={"patient_id":patient_id})
+            assert history.status_code == 200, history.text
+            assert any(row["id"] == request["id"] and row["radiologist_id"] == user_id for row in history.json())
+            denied_author = await client.put(f"/api/v1/radiology/requests/{request['id']}",json={"radiologist_id":str(uuid.uuid4()),"report_text":"Spoofed"})
+            assert denied_author.status_code == 403
+            with db.cursor() as cursor:
+                cursor.execute("UPDATE users SET is_active=false WHERE id=%s", (user_id,))
+            assert (await client.get("/api/v1/radiology/requests")).status_code == 403
+            with db.cursor() as cursor:
+                cursor.execute("UPDATE users SET is_active=true WHERE id=%s", (user_id,))
+
 
             # The live Go authority denies a revoked user, even with an ADMIN JWT.
             with db.cursor() as cursor:
@@ -519,3 +546,83 @@ async def test_authz_check_grants_the_admin_override(core_service: CoreService) 
     client = core_service.client()
 
     assert await client.check_authorization("ADMIN", "laboratory", "delete") is True
+
+
+async def test_account_recovery_revokes_real_go_and_python_sessions(
+    core_service: CoreService, db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from main import app
+    from auth.jwt import TokenVerifier
+    from database import get_db
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    routers = [importlib.import_module(f"modules.{name}.router") for name in ("laboratory", "nhia", "radiology")]
+    engine = create_engine(core_service.database_url.replace("postgres://", "postgresql+psycopg2://", 1).replace("postgresql://", "postgresql+psycopg2://", 1))
+    sessions = sessionmaker(bind=engine)
+
+    def session_dependency() -> Iterator:
+        with sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = session_dependency
+    for router in routers:
+        monkeypatch.setattr(router, "core_client", core_service.client())
+        app.dependency_overrides[router.verify_token] = TokenVerifier(TEST_JWT_SECRET)
+    unique = uuid.uuid4().hex
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO users(username,email,password_hash,first_name,last_name,role,department) VALUES(%s,%s,'synthetic','Synthetic','Actor','ADMIN','Test') RETURNING id", (unique, unique+"@example.invalid"))
+        actor_id = str(cursor.fetchone()[0])
+    actor_token = jwt.encode({"user_id":actor_id,"sub":actor_id,"username":unique,"role":"ADMIN","department":"Test","iss":"hims-core-go","aud":"hims-clients","exp":datetime.now(timezone.utc)+timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
+    headers = {"Authorization":"Bearer "+actor_token}
+    username = "recovery_"+uuid.uuid4().hex
+    original = "Synthetic original password"
+    replacement = "Synthetic replacement password"
+    try:
+        async with httpx.AsyncClient(base_url=core_service.base_url, timeout=30) as core, httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://interop.test") as interop:
+            created = await core.post("/api/v1/admin/users",headers=headers,json={"username":username,"email":username+"@example.invalid","firstName":"Synthetic","lastName":"Subject","role":"ADMIN","department":"Test","password":original})
+            assert created.status_code == 201, created.text
+            target = created.json()["id"]
+
+            async def login(password: str, expected: int) -> str:
+                response = await core.post("/api/v1/auth/login",json={"username":username,"password":password})
+                assert response.status_code == expected, response.text
+                return response.json().get("token","")
+
+            async def access(token: str, allowed: bool) -> None:
+                bearer = {"Authorization":"Bearer "+token}
+                for path in ("/api/v1/auth/me","/api/v1/admin/directory"):
+                    response = await core.get(path,headers=bearer)
+                    assert response.status_code == (200 if allowed else 401), response.text
+                for path in ("/api/v1/laboratory/catalog","/api/v1/nhia/providers","/api/v1/radiology/catalog"):
+                    response = await interop.get(path,headers=bearer)
+                    assert response.status_code == (200 if allowed else 403), response.text
+
+            old = await login(original,200)
+            await access(old,True)
+            reset = await core.post(f"/api/v1/admin/users/{target}/reset-password",headers=headers,json={"password":replacement,"reason":"Synthetic recovery"})
+            assert reset.status_code == 200, reset.text
+            await access(old,False)
+            await login(original,401)
+            fresh = await login(replacement,200)
+            await access(fresh,True)
+            with db.cursor() as cursor:
+                cursor.execute("UPDATE users SET is_active=false WHERE id=%s",(target,))
+            await access(fresh,False)
+            await login(replacement,401)
+            reactivated = await core.post(f"/api/v1/admin/users/{target}/reactivate",headers=headers,json={"reason":"Synthetic reactivation"})
+            assert reactivated.status_code == 200, reactivated.text
+            await access(old,False)
+            await access(fresh,False)
+            current = await login(replacement,200)
+            await access(current,True)
+            with db.cursor() as cursor:
+                cursor.execute("SELECT token_version FROM users WHERE id=%s",(target,))
+                assert cursor.fetchone()[0] == 2
+                cursor.execute("SELECT action,details::text FROM audit_logs WHERE resource_id=%s AND action IN ('RESET_PASSWORD','REACTIVATE_USER') ORDER BY action",(target,))
+                audits = cursor.fetchall()
+                assert len(audits) == 2
+                assert all(original not in details and replacement not in details for _,details in audits)
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()

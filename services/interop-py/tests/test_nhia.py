@@ -128,3 +128,26 @@ def test_nhia_provider_and_claims(mock_auth_override, mock_core_client):
     assert response.status_code == 200
     assert response.json()["updated_count"] == 2
 
+
+
+def test_claim_history_filters_pagination_and_soft_deletion(mock_auth_override, mock_core_client, test_db):
+    provider = client.post("/api/v1/nhia/providers", json={"name":"Synthetic history", "code":"SYN-"+uuid.uuid4().hex}).json()
+    ids = []
+    for amount in ["12.30", "45.67", "89.01"]:
+        result = client.post("/api/v1/nhia/claims", json={"hmo_provider_id":provider["id"], "invoice_id":mock_auth_override["invoice_id"], "patient_id":mock_auth_override["patient_id"], "claim_amount":amount})
+        assert result.status_code == 201
+        ids.append(result.json()["id"])
+    test_db.execute(text("UPDATE hmo_claims SET deleted_at=CURRENT_TIMESTAMP WHERE id=:id"), {"id":ids[1]})
+    test_db.commit()
+    path = "/api/v1/nhia/claims?hmo_provider_id="+provider["id"]
+    response = client.get(path)
+    assert response.status_code == 200
+    assert {claim["id"] for claim in response.json()} == {ids[0],ids[2]}
+    assert {claim["claim_amount"] for claim in response.json()} == {"12.30","89.01"}
+    first = client.get(path+"&limit=1&offset=0").json()
+    second = client.get(path+"&limit=1&offset=1").json()
+    assert len(first) == len(second) == 1
+    assert first[0]["id"] != second[0]["id"]
+    assert client.get(path+"&patient_id="+str(uuid.uuid4())).json() == []
+    for query in ["limit=0","limit=1001","offset=-1","patient_id=invalid"]:
+        assert client.get("/api/v1/nhia/claims?"+query).status_code == 422

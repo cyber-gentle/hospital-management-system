@@ -1,3 +1,5 @@
+import { DEMO_MODE } from '../../lib/demo';
+import { LiveReportingView } from './LiveReportingView';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   DollarSign,
@@ -18,7 +20,7 @@ import { FinancialReportsView } from './components/FinancialReportsView';
 import { ClinicalCensusView } from './components/ClinicalCensusView';
 import { OperationalMetricsView } from './components/OperationalMetricsView';
 
-export const ReportingView: React.FC = () => {
+const ReportingViewDemo: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'FINANCIAL' | 'CLINICAL' | 'OPERATIONAL'>('FINANCIAL');
   const [period, setPeriod] = useState<ReportingPeriod>('THIS_MONTH');
   const [summary, setSummary] = useState<ExecutiveDashboardSummary | null>(null);
@@ -248,3 +250,5 @@ export const ReportingView: React.FC = () => {
     </div>
   );
 };
+
+export const ReportingView: React.FC = () => DEMO_MODE ? <ReportingViewDemo /> : <LiveReportingView />;

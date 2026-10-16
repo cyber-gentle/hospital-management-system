@@ -16,10 +16,11 @@ const tokenIssuer = "hims-core-go"
 
 // UserClaims defines custom claims embedded in the JWT token.
 type UserClaims struct {
-	UserID     string `json:"user_id"`
-	Username   string `json:"username"`
-	Role       string `json:"role"`
-	Department string `json:"department"`
+	TokenVersion int    `json:"token_version"`
+	UserID       string `json:"user_id"`
+	Username     string `json:"username"`
+	Role         string `json:"role"`
+	Department   string `json:"department"`
 	jwt.RegisteredClaims
 }
 
@@ -42,12 +43,21 @@ func NewTokenService(secret []byte) *TokenService {
 // responsible for passing the role and department recorded against the user in
 // the database — never a value supplied by the client.
 func (s *TokenService) Generate(userID, username, role, department string) (string, error) {
+	return s.GenerateVersion(userID, username, role, department, 0)
+}
+
+// GenerateVersion binds a login to the current account session generation.
+func (s *TokenService) GenerateVersion(userID, username, role, department string, version int) (string, error) {
+	if version < 0 {
+		return "", errors.New("invalid session version")
+	}
 	now := time.Now().UTC()
 	claims := UserClaims{
-		UserID:     userID,
-		Username:   username,
-		Role:       role,
-		Department: department,
+		TokenVersion: version,
+		UserID:       userID,
+		Username:     username,
+		Role:         role,
+		Department:   department,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    tokenIssuer,
 			Subject:   userID,
@@ -90,7 +100,7 @@ func (s *TokenService) Validate(tokenStr string) (*UserClaims, error) {
 	if !ok || !token.Valid {
 		return nil, errors.New("invalid token claims")
 	}
-	if claims.UserID == "" || claims.Role == "" || claims.Subject != claims.UserID {
+	if claims.TokenVersion < 0 || claims.UserID == "" || claims.Role == "" || claims.Subject != claims.UserID {
 		return nil, errors.New("invalid token identity claims")
 	}
 

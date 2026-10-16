@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	ContextUserID     = "auth_user_id"
-	ContextUsername   = "auth_username"
-	ContextUserRole   = "auth_user_role"
-	ContextDepartment = "auth_department"
+	ContextTokenVersion = "auth_token_version"
+	ContextUserID       = "auth_user_id"
+	ContextUsername     = "auth_username"
+	ContextUserRole     = "auth_user_role"
+	ContextDepartment   = "auth_department"
 )
 
 // AuthRequired validates bearer tokens on protected endpoints.
@@ -44,6 +45,7 @@ func AuthRequired(tokens *TokenService) gin.HandlerFunc {
 		}
 
 		// Inject user context
+		c.Set(ContextTokenVersion, claims.TokenVersion)
 		c.Set(ContextUserID, claims.UserID)
 		c.Set(ContextUsername, claims.Username)
 		c.Set(ContextUserRole, claims.Role)
@@ -125,19 +127,10 @@ func RequirePermission(db *sql.DB, module, action string) gin.HandlerFunc {
 			return
 		}
 		if db != nil {
-			var currentUsername, currentDepartment string
-			err := db.QueryRowContext(c.Request.Context(), `SELECT role,username,department FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL`, userID).Scan(&userRole, &currentUsername, &currentDepartment)
-			if err == sql.ErrNoRows {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Account is inactive or unavailable"})
+			if !refreshSession(c, db) {
 				return
 			}
-			if err != nil {
-				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
-				return
-			}
-			c.Set(ContextUserRole, userRole)
-			c.Set(ContextUsername, currentUsername)
-			c.Set(ContextDepartment, currentDepartment)
+			userRole = c.GetString(ContextUserRole)
 		}
 
 		if userRole == "ADMIN" {
@@ -174,4 +167,42 @@ func RequirePermission(db *sql.DB, module, action string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// RequireActiveSession refreshes identity and checks account/session state
+// without requiring a module permission, for identity-only endpoints.
+func RequireActiveSession(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !refreshSession(c, db) {
+			return
+		}
+		c.Next()
+	}
+}
+func refreshSession(c *gin.Context, db *sql.DB) bool {
+	if db == nil {
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+		return false
+	}
+	userID := c.GetString(ContextUserID)
+	var userRole string
+	var currentUsername, currentDepartment string
+	var currentVersion int
+	err := db.QueryRowContext(c.Request.Context(), `SELECT role,username,department,token_version FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL`, userID).Scan(&userRole, &currentUsername, &currentDepartment, &currentVersion)
+	if err == sql.ErrNoRows {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Account is inactive or unavailable"})
+		return false
+	}
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
+		return false
+	}
+	if currentVersion != c.GetInt(ContextTokenVersion) {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session revoked; sign in again"})
+		return false
+	}
+	c.Set(ContextUserRole, userRole)
+	c.Set(ContextUsername, currentUsername)
+	c.Set(ContextDepartment, currentDepartment)
+	return true
 }

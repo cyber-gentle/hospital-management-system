@@ -447,3 +447,41 @@ decision) rather than resolving it silently.
 - [ ] Configure hospital-approved body release/payment/coroner rules, leave review policy, purchase approval/receipt policy, chamber slots, sub-store mappings and least-privilege role grants before enabling blocked actions.
 - [ ] Implement authoritative audit seal verification and approved anomaly detection rules; status remains UNAVAILABLE.
 - [ ] Verify the real hospital end-to-end workflows before declaring any Build Group exit complete. Existing module completion checkmarks do not establish readiness; see PR_MERGE_AUDIT.md.
+
+## Preview integration work (2026-10-15)
+
+Current task: NHIA/HMO live provider directory and claim history (FR-HMO-01, FR-HMO-04), before enabling tariff-dependent financial mutations.
+- [x] Add authenticated, paginated claim history through Python with real Go authorization.
+- [x] Connect provider and claim reads to the frontend without browser fallback or invented invoice totals.
+- [x] Enable the NHIA screen for production reads; retain explicit unavailable states for unconfigured tariff/eligibility/submission actions.
+- [x] Verify production rejection, exact response mapping and actual Go authorization.
+- [x] Connect the remaining preview screens to their supported live scope: Radiology, Theatre, Emergency, Maternity, Reporting, Administration. Restricted actions remain separately tracked.
+
+Current task: Radiology live catalog, request list/intake and report recording (FR-RAD-01, FR-RAD-03). Formal sign-off and PACS upload are not configured.
+- [x] Add paginated request reads and connect production request/report forms to existing Python mutations.
+- [x] Check active patient/catalog references and prevent forged report-author identity.
+- [x] Verify actual Go RBAC/audit boundary and production failure handling before enabling the screen.
+
+Current task: approved Theatre/Emergency/Maternity audited recordkeeping foundations. These later-group modules are being integrated at the owner's request; full clinical workflow exit criteria remain open.
+- [x] Add Go-owned clinical record storage, patient ownership/deposit checks, per-module RBAC and atomic existing audit writer calls.
+- [x] Enable production record entry/read views without synthetic defaults or clinical state transitions.
+- [x] Prove permission rejection, audit failure rollback, patient gate and no admission/bed state changes.
+
+Current task: Reporting persisted financial totals and current census (FR-REP-01, FR-REP-02).
+- [x] Add explicit UTC date range, exact invoice/payment totals and current admission/bed counts.
+- [x] Connect a live reporting view; keep unconfigured performance/morbidity indicators unavailable.
+- [x] Verify period boundaries, soft deletes, payment statuses, precision and RBAC.
+
+Current task: Administration with owner-approved ADMIN write / AUDITOR review policy (FR-SEC-02, FR-SEC-03).
+- [x] Add audited account creation and per-user permission grants/revocation.
+- [x] Add account reactivation and password reset after session-revocation approval.
+- [x] Revoke prior sessions on password reset/reactivation across Go and Python using Go-owned authorization.
+- [x] Connect persisted account and permission review with ADMIN-only controls; leave unenforced facility settings unavailable.
+- [x] Verify AUDITOR cannot mutate, stale ADMIN role claims are rejected, credentials are absent from responses/audits, and audit failure rolls back changes.
+- [x] Verify old sessions are revoked after password reset/reactivation, once approved.
+
+- [x] Session-version revocation explicitly approved by the owner on 2026-10-16. Added migration 000024, Go-issued session versions, authoritative checks in Go and forwarding from all Python actions. Existing audit writer remains unchanged.
+
+- [x] Verify the supported seven-screen integration scope: full Go race suite with real PostgreSQL, go vet/gofmt, 56 Python tests with actual Go cross-service calls, 31 frontend tests and production build. See PREVIEW_INTEGRATION.md. Password reset/reactivation completed on 2026-10-16; hospital-policy-dependent actions remain open.
+
+- [x] Verify account recovery on 2026-10-16: full Go race suite, go vet/gofmt, 63 Python tests and 32 frontend tests plus production build. Real HTTP tests prove old credentials/sessions fail and fresh logins succeed across Go and all three Python modules after reset/reactivation.

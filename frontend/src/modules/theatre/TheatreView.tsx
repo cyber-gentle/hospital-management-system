@@ -1,3 +1,5 @@
+import { DEMO_MODE } from '../../lib/demo';
+import { ClinicalRecordView } from '../../components/ClinicalRecordView';
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Scissors, 
@@ -34,7 +36,7 @@ interface TheatreViewProps {
   onBackToDashboard?: () => void;
 }
 
-export const TheatreView: React.FC<TheatreViewProps> = ({ onBackToDashboard }) => {
+const TheatreViewDemo: React.FC<TheatreViewProps> = ({ onBackToDashboard }) => {
   const [bookings, setBookings] = useState<SurgeryBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"schedule" | "theatres" | "pacu" | "completed">("schedule");
@@ -692,3 +694,5 @@ export const TheatreView: React.FC<TheatreViewProps> = ({ onBackToDashboard }) =
     </div>
   );
 };
+
+export const TheatreView: React.FC<TheatreViewProps> = (props) => DEMO_MODE ? <TheatreViewDemo {...props} /> : <ClinicalRecordView module="theatre" title="Theatre records" onBackToDashboard={props.onBackToDashboard} />;

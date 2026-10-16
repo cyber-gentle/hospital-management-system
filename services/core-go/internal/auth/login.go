@@ -100,7 +100,7 @@ func (h *LoginHandler) Handle(c *gin.Context) {
 	}
 
 	// The role and department come from the stored record, never the request.
-	token, err := h.tokens.Generate(user.ID, user.Username, user.Role, user.Department)
+	token, err := h.tokens.GenerateVersion(user.ID, user.Username, user.Role, user.Department, user.TokenVersion)
 	if err != nil {
 		log.Printf("[AUTH] failed to issue token for user %s: %v", user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "authentication is temporarily unavailable"})

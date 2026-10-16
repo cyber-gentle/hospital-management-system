@@ -26,6 +26,7 @@ async def check_permissions(user: TokenClaims, action: str) -> None:
             module="laboratory",
             action=action,
             user_id=user.user_id,
+            token_version=user.token_version,
         )
     except CoreServiceError as err:
         raise HTTPException(

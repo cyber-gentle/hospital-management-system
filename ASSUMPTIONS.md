@@ -169,3 +169,17 @@ deposit with paid_amount > 0, unless its ward has is_accident_emergency=true.
 A ward name or free-text ward type does not grant an exemption. This resolves
 the earlier open sub-questions; admission intake must exist so that its
 deposit can be recorded, and clinical folder access enforces the gate.
+
+## NHIA integration decision — 2026-10-15
+
+Owner confirmed approved tariffs, covered-service mappings and eligibility provider are undecided. Keep production tariff-based claim submission and eligibility verification disabled. Live provider directory and persisted claim history may proceed.
+
+## Clinical preview integration decision — 2026-10-15
+
+Owner chose audited recordkeeping first for Theatre, Emergency and Maternity. Production records are unverified observations/planning notes; clinical sign-off, automatic transfers and delivery finalization remain disabled. Initial recordkeeping requires a registered patient, existing module permissions and the existing clinician-folder deposit gate. Detailed synthetic form workflows remain demo-only until structured workflow requirements are approved.
+
+### Administration authority — owner decision, 2026-10-15
+ADMIN manages accounts, permission grants, unlocking and password resets. AUDITOR reviews only. These roles are held by named staff; clinical or HR roles do not acquire account-administration authority.
+
+### Session revocation — explicit owner approval, 2026-10-16
+Owner: “I approve the cross-service session-version change”. Password reset/reactivation will increment account session versions atomically with audit. Existing versionless tokens are version zero and remain valid only until that account generation changes. Deploy migration and both services together.

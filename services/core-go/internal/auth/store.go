@@ -12,6 +12,7 @@ var ErrUserNotFound = errors.New("user not found")
 
 // User is the subset of a users row needed to authenticate a request.
 type User struct {
+	TokenVersion int
 	ID           string
 	Username     string
 	PasswordHash string
@@ -41,7 +42,7 @@ func NewPostgresUserStore(db *sql.DB) *PostgresUserStore {
 // not be able to authenticate.
 func (s *PostgresUserStore) FindByUsername(ctx context.Context, username string) (*User, error) {
 	const query = `
-		SELECT id::text, username, password_hash, role, department, is_active
+		SELECT id::text, username, password_hash, role, department, is_active, token_version
 		FROM users
 		WHERE username = $1 AND deleted_at IS NULL`
 
@@ -53,6 +54,7 @@ func (s *PostgresUserStore) FindByUsername(ctx context.Context, username string)
 		&user.Role,
 		&user.Department,
 		&user.IsActive,
+		&user.TokenVersion,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUserNotFound

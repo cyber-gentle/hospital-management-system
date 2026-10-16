@@ -1,3 +1,5 @@
+import { DEMO_MODE } from '../../lib/demo';
+import { LiveAdminView } from './LiveAdminView';
 import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
@@ -21,7 +23,7 @@ import { FacilityConfigView } from './components/FacilityConfigView';
 import { RolePermissionMatrixView } from './components/RolePermissionMatrixView';
 import { UserManagementView } from './components/UserManagementView';
 
-export const AdminView: React.FC = () => {
+const AdminViewDemo: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'facility' | 'rbac' | 'users'>('facility');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -262,3 +264,5 @@ export const AdminView: React.FC = () => {
     </div>
   );
 };
+
+export const AdminView: React.FC = () => DEMO_MODE ? <AdminViewDemo /> : <LiveAdminView />;

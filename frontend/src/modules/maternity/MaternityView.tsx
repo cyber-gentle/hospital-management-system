@@ -1,3 +1,5 @@
+import { DEMO_MODE } from '../../lib/demo';
+import { ClinicalRecordView } from '../../components/ClinicalRecordView';
 import React, { useState, useEffect } from 'react';
 import {
   Baby,
@@ -19,7 +21,7 @@ import { AncVisitModal } from './components/AncVisitModal';
 import { LaborDeliveryModal } from './components/LaborDeliveryModal';
 import { PostnatalCareModal } from './components/PostnatalCareModal';
 
-export const MaternityView: React.FC = () => {
+const MaternityViewDemo: React.FC = () => {
   const [ancProfiles, setAncProfiles] = useState<AncProfile[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
   const [pncCheckups, setPncCheckups] = useState<PncCheckup[]>([]);
@@ -559,3 +561,5 @@ export const MaternityView: React.FC = () => {
     </div>
   );
 };
+
+export const MaternityView: React.FC = () => DEMO_MODE ? <MaternityViewDemo /> : <ClinicalRecordView module="maternity" title="Maternity records" />;

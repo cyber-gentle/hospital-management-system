@@ -84,7 +84,7 @@ class CoreServiceClient:
                     f"Failed to record audit log on core service: {exc}"
                 ) from exc
 
-    async def check_authorization(self, role: str, module: str, action: str, user_id: Optional[str] = None) -> bool:
+    async def check_authorization(self, role: str, module: str, action: str, user_id: Optional[str] = None, token_version: int = 0) -> bool:
         """Resolve a permission decision from the core service's authoritative matrix.
 
         Raises:
@@ -96,6 +96,7 @@ class CoreServiceClient:
         params = {"role": role, "module": module, "action": action}
         if user_id is not None:
             params["user_id"] = user_id
+            params["token_version"] = str(token_version)
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.get(url, params=params, headers=self._headers())
