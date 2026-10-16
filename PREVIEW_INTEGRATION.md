@@ -43,3 +43,16 @@ Apply migration 000024 before starting the updated services (the Go startup migr
 Existing JWTs without token_version are treated as generation zero. New logins carry the stored account generation. Successful reset/reactivation invalidates all earlier generations, including the caller if an ADMIN resets their own password. New credentials must be used to log in again. This extends the existing JWT mechanism and keeps Go as the only authorization authority.
 
 The ADMIN view requires a reason for recovery and clears its password input after submission. Responses and audit payloads exclude credentials. Every Python mutation is tested against real Go authorization after revocation; a separate real HTTP scenario exercises create, login, reset, reactivation and fresh login across both services.
+
+## Review against incoming team specifications
+
+The feature branch incorporates origin/main through ec3e4df, preserving the four documentation commits. These documents now exist; earlier commit descriptions that said the detailed SRS was absent describe the checkout at implementation time.
+
+The new documents require reconciliation with recorded owner decisions and implemented behavior before readiness claims can be accepted:
+- docs/HOSPITAL_VALIDATION_GUIDE.md CL-01 describes a soft deposit warning. The recorded decision enforces any positive deposit at the API, with an explicit A&E ward exemption.
+- CL-03 and docs/03_SRS.md FR-NS-10 describe a doctor/Matron override. The recorded decision has no override; automatic billing remains disabled pending approved tariffs.
+- docs/06_SECURITY_RBAC.md lists different JWT issuer/audience/TTL values, plus mandatory MFA and automatic lockout. This change preserves the existing issuer hims-core-go, audience hims-clients and 24-hour TTL, adds session versions, and does not claim MFA, idle timeout or automatic lockout.
+- The System Admin matrix omits AUDITOR read access; the owner explicitly approved ADMIN mutations and AUDITOR review.
+- Recent TASKS.md completion marks do not establish end-to-end readiness of disabled workflows. The verified supported scope remains the table above.
+
+Current SRS mapping: NHIA history partially supports FR-NH-04; Radiology request/report recording partially supports FR-RA-01/FR-RA-03 (no sign-off); reporting partially supports FR-REP-01/02; administration supports portions of FR-SEC-02/03 (no automatic lockout or temporary-password lifecycle). Clinical notes are the separately approved recordkeeping foundation, not complete FR-THE/FR-AE/FR-MAT workflow implementation. Earlier FR-HMO/FR-RAD IDs are legacy TASKS.md references.

@@ -483,3 +483,5 @@ Current task: Administration with owner-approved ADMIN write / AUDITOR review po
 - [x] Verify the supported seven-screen integration scope: full Go race suite with real PostgreSQL, go vet/gofmt, 56 Python tests with actual Go cross-service calls, 31 frontend tests and production build. See PREVIEW_INTEGRATION.md. Password reset/reactivation completed on 2026-10-16; hospital-policy-dependent actions remain open.
 
 - [x] Verify account recovery on 2026-10-16: full Go race suite, go vet/gofmt, 63 Python tests and 32 frontend tests plus production build. Real HTTP tests prove old credentials/sessions fail and fresh logins succeed across Go and all three Python modules after reset/reactivation.
+
+- [ ] Reconcile the newly added team specifications (origin/main ec3e4df) with recorded owner decisions and verified functionality: deposit enforcement, discharge override/billing, JWT constants, ADMIN/AUDITOR authority, MFA/lockout and full-system QA claims. See PREVIEW_INTEGRATION.md; no new hospital policy is inferred from the conflicting descriptions.
