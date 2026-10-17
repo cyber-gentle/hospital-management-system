@@ -22,7 +22,7 @@ core_client = CoreServiceClient(
 
 async def check_permissions(claims: TokenClaims, action: str) -> None:
     try:
-        allowed = await core_client.check_authorization(claims.role, "radiology", action, claims.user_id, claims.token_version)
+        allowed = await core_client.check_authorization(claims.role, "radiology", action, claims.user_id, claims.token_version, claims.session_id)
     except CoreServiceError as exc:
         raise HTTPException(503, "Authorization service unavailable") from exc
     if not allowed:

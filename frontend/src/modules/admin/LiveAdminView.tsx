@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { liveAdminApi, type Directory, type NewAccount } from './liveApi';
+import { liveAdminApi, type Directory, type NewAccount, type SecurityPolicy } from './liveApi';
 const empty:NewAccount = {username:'',email:'',firstName:'',lastName:'',role:'',department:'',password:''};
 const message = (e:unknown) => typeof e==='object' && e!==null && 'message' in e ? String(e.message) : 'Administration request failed';
 export function LiveAdminView() {
@@ -13,10 +13,15 @@ export function LiveAdminView() {
  const [permission,setPermission] = useState('');
  const [newPassword,setNewPassword] = useState('');
  const [reason,setReason] = useState('');
- useEffect(()=>{setNewPassword('');setReason('');},[selected]);
+ const [identityVerified,setIdentityVerified] = useState(false);
+ const [policy,setPolicy] = useState<SecurityPolicy|null>(null);
+ const [policyError,setPolicyError] = useState('');
+ useEffect(()=>{setNewPassword('');setReason('');setIdentityVerified(false);},[selected]);
  useEffect(() => {
   const controller = new AbortController();setData(null);setError('');
   liveAdminApi.directory(controller.signal).then(setData).catch((e:unknown) => {if(!controller.signal.aborted)setError(message(e));});
+  setPolicyError('');
+  liveAdminApi.security(controller.signal).then(setPolicy).catch((e:unknown)=>{if(!controller.signal.aborted)setPolicyError(message(e));});
   return () => controller.abort();
  },[revision]);
  const mutate = async (action:()=>Promise<unknown>,success:string) => {
@@ -50,6 +55,9 @@ export function LiveAdminView() {
       <button disabled={busy || !reason.trim()}>Reset password and revoke sessions</button>
      </form>
      {!user.is_active && <button disabled={busy || !reason.trim()} onClick={()=>void mutate(()=>liveAdminApi.reactivate(user.id,reason),'Account reactivated. A fresh login is required.')}>Reactivate account and revoke sessions</button>}
+     <button disabled={busy || !reason.trim()} onClick={()=>void mutate(()=>liveAdminApi.unlock(user.id,reason),'Account lockout cleared. MFA is still required.')}>Unlock account</button>
+     <label className="block"><input type="checkbox" checked={identityVerified} onChange={e=>setIdentityVerified(e.target.checked)} /> I have verified this staff member’s identity for MFA recovery.</label>
+     <button disabled={busy || !reason.trim() || !identityVerified} onClick={()=>void mutate(()=>liveAdminApi.resetMFA(user.id,reason),'MFA reset. Previous sessions and backup codes revoked; authenticator enrollment is required at next login.')}>Reset MFA for another staff member</button>
     </div>}
     {data.canManage && <form onSubmit={e=>{e.preventDefault();void mutate(()=>liveAdminApi.grant(user.id,permission),'Individual permission granted.');}}>
      <label>Permission <select className="border p-2" required value={permission} onChange={e=>setPermission(e.target.value)}><option value="">Select permission</option>{data.permissions.map(p=><option key={p.id} value={p.id}>{p.id}</option>)}</select></label>
@@ -67,7 +75,9 @@ export function LiveAdminView() {
     <button disabled={busy}>Create account</button>
    </form>}
   </>}
-  <p>Reactivation restores inactive accounts. A separate automatic lockout state is not implemented.</p>
-  <p>Facility settings and security-policy toggles remain unavailable until their enforcement is implemented.</p>
+  <h2 className="font-bold">Enforced security policy</h2>
+  {policyError && <p role="alert">Security policy could not be loaded: {policyError}</p>}
+  {policy && <p>MFA is required for all staff. {policy.max_failed_attempts} consecutive failed sign-ins cause a {policy.lockout_minutes}-minute lockout. Sessions expire after {policy.idle_timeout_minutes} minutes without a server request. These approved settings are read-only.</p>}
+  <p>Reactivation restores inactive accounts. Unlocking clears a timed sign-in lockout. Neither action removes MFA.</p>
  </section>;
 }

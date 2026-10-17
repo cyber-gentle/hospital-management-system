@@ -66,11 +66,11 @@ func TestOperationsPersistencePermissionsAndAtomicAudit(t *testing.T) {
 	}
 	admin := seedUser("ADMIN")
 	reader := seedUser("SYNTHETIC_OPERATIONS_NO_GRANTS")
-	token, err := tokens.Generate(admin, "Untrusted display name", "ADMIN", "Test")
+	token, err := tokens.GenerateSession(admin, "Untrusted display name", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, admin))
 	if err != nil {
 		t.Fatal(err)
 	}
-	deniedToken, err := tokens.Generate(reader, "Synthetic", "ADMIN", "Test")
+	deniedToken, err := tokens.GenerateSession(reader, "Synthetic", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, reader))
 	if err != nil {
 		t.Fatal(err)
 	}

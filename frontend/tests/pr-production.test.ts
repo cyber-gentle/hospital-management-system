@@ -166,3 +166,18 @@ test('account recovery sends explicit values without saving passwords in browser
  ]);
  assert.deepEqual(writes,[]);
 });
+
+test('MFA recovery forwards identity verification and propagates ADMIN rejection',async()=>{
+ const calls: Array<{url:string;body:unknown}> = [];
+ globalThis.fetch=async(url,init)=>{
+  calls.push({url:String(url),body:JSON.parse(String(init?.body))});
+  return new Response(JSON.stringify({error:'Another ADMIN required'}),{status:403});
+ };
+ await assert.rejects(liveAdminApi.resetMFA('staff','Synthetic verified recovery'));
+ await assert.rejects(liveAdminApi.unlock('staff','Synthetic unlock'));
+ assert.deepEqual(calls,[
+  {url:'/api/v1/admin/security/users/staff/reset-mfa',body:{reason:'Synthetic verified recovery',identity_verified:true}},
+  {url:'/api/v1/admin/security/users/staff/unlock',body:{reason:'Synthetic unlock'}},
+ ]);
+ assert.deepEqual(writes,[]);
+});

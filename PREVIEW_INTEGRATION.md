@@ -10,7 +10,7 @@ This is an integration status report, not hospital workflow sign-off. Earlier mo
 | Emergency | Patient-scoped triage/stabilization/medication notes, all marked RECORDED_UNVERIFIED | Automatic admissions, beds/transfers and clinical sign-off |
 | Maternity | Patient-scoped antenatal/delivery/postnatal notes, all marked RECORDED_UNVERIFIED | Delivery finalization, automatic transfers and clinical sign-off |
 | Reporting | Explicit inclusive UTC dates for invoice totals and completed receipts; current admissions and active/occupied beds | Historical census, morbidity and performance metrics without approved definitions |
-| Administration | Persisted accounts and grants; ADMIN account creation, individual grant/revocation, password reset and inactive-account reactivation; AUDITOR review only | Automatic lockout state and facility/security toggles without enforcement |
+| Administration | Persisted accounts and grants; ADMIN account creation, individual grant/revocation, password reset, reactivation, timed-lockout clearing and another staff member's MFA reset; AUDITOR review only; enforced security policy review | General facility toggles and temporary-password lifecycle |
 
 ## Recorded decisions and boundaries
 
@@ -51,8 +51,8 @@ The feature branch incorporates origin/main through ec3e4df, preserving the four
 The new documents require reconciliation with recorded owner decisions and implemented behavior before readiness claims can be accepted:
 - docs/HOSPITAL_VALIDATION_GUIDE.md CL-01 describes a soft deposit warning. The recorded decision enforces any positive deposit at the API, with an explicit A&E ward exemption.
 - CL-03 and docs/03_SRS.md FR-NS-10 describe a doctor/Matron override. The recorded decision has no override; automatic billing remains disabled pending approved tariffs.
-- docs/06_SECURITY_RBAC.md lists different JWT issuer/audience/TTL values, plus mandatory MFA and automatic lockout. This change preserves the existing issuer hims-core-go, audience hims-clients and 24-hour TTL, adds session versions, and does not claim MFA, idle timeout or automatic lockout.
+- docs/06_SECURITY_RBAC.md lists different JWT issuer/audience/TTL values. The existing issuer hims-core-go, audience hims-clients and 24-hour absolute TTL remain. Owner-approved hardening on 2026-10-17 adds all-staff MFA, five-failure/fifteen-minute lockout and thirty-minute server idle expiry. See AUTHENTICATION_SECURITY.md for the required coordinated deployment.
 - The System Admin matrix omits AUDITOR read access; the owner explicitly approved ADMIN mutations and AUDITOR review.
 - Recent TASKS.md completion marks do not establish end-to-end readiness of disabled workflows. The verified supported scope remains the table above.
 
-Current SRS mapping: NHIA history partially supports FR-NH-04; Radiology request/report recording partially supports FR-RA-01/FR-RA-03 (no sign-off); reporting partially supports FR-REP-01/02; administration supports portions of FR-SEC-02/03 (no automatic lockout or temporary-password lifecycle). Clinical notes are the separately approved recordkeeping foundation, not complete FR-THE/FR-AE/FR-MAT workflow implementation. Earlier FR-HMO/FR-RAD IDs are legacy TASKS.md references.
+Current SRS mapping: NHIA history partially supports FR-NH-04; Radiology request/report recording partially supports FR-RA-01/FR-RA-03 (no sign-off); reporting partially supports FR-REP-01/02; administration supports portions of FR-SEC-02/03 (temporary-password lifecycle remains open), with owner-approved MFA/lockout/session enforcement described separately. Clinical notes are the separately approved recordkeeping foundation, not complete FR-THE/FR-AE/FR-MAT workflow implementation. Earlier FR-HMO/FR-RAD IDs are legacy TASKS.md references.

@@ -92,7 +92,20 @@ func main() {
 		})
 	})
 
-	loginHandler := auth.NewLoginHandler(userStore, tokens, auditWriter)
+	// The legacy password-only handler is not registered on the live server.
+	_ = userStore
+	mfaKey, err := config.LoadMFAEncryptionKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+	var securityDB *sql.DB
+	if db != nil {
+		securityDB = db.DB
+	}
+	securityHandler, err := auth.NewSecurityHandler(securityDB, tokens, auditWriter, mfaKey)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	apiV1 := router.Group("/api/v1")
 	{
@@ -110,7 +123,10 @@ func main() {
 		})
 
 		// Public authentication routes.
-		apiV1.POST("/auth/login", loginHandler.Handle)
+		apiV1.POST("/auth/login", securityHandler.HandleLogin)
+		if db != nil && auditWriter != nil {
+			securityHandler.RegisterAdminRoutes(apiV1)
+		}
 
 		// Protected routes.
 		var sessionDB *sql.DB

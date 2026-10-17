@@ -485,3 +485,14 @@ Current task: Administration with owner-approved ADMIN write / AUDITOR review po
 - [x] Verify account recovery on 2026-10-16: full Go race suite, go vet/gofmt, 63 Python tests and 32 frontend tests plus production build. Real HTTP tests prove old credentials/sessions fail and fresh logins succeed across Go and all three Python modules after reset/reactivation.
 
 - [ ] Reconcile the newly added team specifications (origin/main ec3e4df) with recorded owner decisions and verified functionality: deposit enforcement, discharge override/billing, JWT constants, ADMIN/AUDITOR authority, MFA/lockout and full-system QA claims. See PREVIEW_INTEGRATION.md; no new hospital policy is inferred from the conflicting descriptions.
+
+## Authentication hardening (FR-SEC-01, FR-SEC-03; 2026-10-17)
+
+Owner requested MFA, automatic lockout and enforced security settings on the existing feature branch.
+- [x] Confirm policy: MFA for all staff; five failures cause a fifteen-minute lockout; thirty-minute server idle timeout; backup codes and audited reset by another ADMIN after identity verification (2026-10-17).
+- [x] Add RFC 6238 TOTP primitives, encrypted per-user secrets, one-use recovery material and test vectors.
+- [x] Add audited enrollment, verification, recovery, automatic lockout and ADMIN unlocking without bypassing MFA.
+- [x] Persist and enforce approved security settings in Go; Python uses Go's session/authorization decisions. Policy views are read-only.
+- [x] Integrate real login/enrollment/security controls; verify replay, concurrent attempts, expiry, lockout, audit rollback and actual Go/Python boundaries.
+- [x] Verify 63 Python tests, additional all-mutation idle-expiry assertions, 33 frontend tests and production build. Deployment requires migration 000025, a persistent MFA_ENCRYPTION_KEY and coordinated Go/Python/frontend rollout; see AUTHENTICATION_SECURITY.md.
+- [x] Verify the full Go race suite with real PostgreSQL, the additional MFA audit-rollback test, go vet and gofmt. The existing audit writer is unchanged.

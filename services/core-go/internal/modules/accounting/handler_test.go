@@ -46,7 +46,7 @@ func TestAccountingEndpoints(t *testing.T) {
 	}
 
 	tokens := auth.NewTokenService([]byte("test-secret"))
-	token, _ := tokens.Generate(userID, "Test", "ACCOUNTANT", "FINANCE")
+	token, _ := tokens.GenerateSession(userID, "Test", "ACCOUNTANT", "FINANCE", 0, testsupport.SeedMFASession(t, db, userID))
 
 	// Setup Router
 	gin.SetMode(gin.TestMode)

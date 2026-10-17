@@ -14,7 +14,7 @@ func TestReportingExactTotalsAndPeriod(t *testing.T) {
 	db := testsupport.OpenDB(t)
 	f := seed(t, db)
 	tokens := auth.NewTokenService([]byte("synthetic-reporting-test-key"))
-	token, err := tokens.Generate(f.user, "Synthetic", "ADMIN", "Test")
+	token, err := tokens.GenerateSession(f.user, "Synthetic", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, f.user))
 	if err != nil {
 		t.Fatal(err)
 	}

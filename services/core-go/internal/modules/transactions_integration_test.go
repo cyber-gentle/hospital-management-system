@@ -67,7 +67,7 @@ func TestEveryModuleMutationRequiresPermission(t *testing.T) {
 		t.Fatal(err)
 	}
 	tokens := auth.NewTokenService([]byte("synthetic-regression-signing-key-000000"))
-	token, err := tokens.Generate(f.user, "Synthetic", role, "Test")
+	token, err := tokens.GenerateSession(f.user, "Synthetic", role, "Test", 0, testsupport.SeedMFASession(t, db, f.user))
 	if err != nil {
 		t.Fatal(err)
 	}

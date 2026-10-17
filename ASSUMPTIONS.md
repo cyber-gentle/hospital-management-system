@@ -183,3 +183,13 @@ ADMIN manages accounts, permission grants, unlocking and password resets. AUDITO
 
 ### Session revocation — explicit owner approval, 2026-10-16
 Owner: “I approve the cross-service session-version change”. Password reset/reactivation will increment account session versions atomically with audit. Existing versionless tokens are version zero and remain valid only until that account generation changes. Deploy migration and both services together.
+
+### Authentication hardening — owner decisions, 2026-10-17
+Require authenticator-app MFA for all staff. After five consecutive failed
+sign-in attempts, lock the account for fifteen minutes. Enforce a thirty-minute
+idle timeout on the server, including Python requests authorized through Go.
+Lost-authenticator recovery uses single-use backup codes or an audited reset by
+another ADMIN after staff identity verification; administrators cannot reset
+their own MFA. These decisions supersede the narrower MFA roles and indefinite
+lockout descriptions in the team specifications. Implementation and verification
+are tracked in TASKS.md; this decision record does not claim enforcement is live.

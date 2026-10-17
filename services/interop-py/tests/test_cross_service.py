@@ -21,6 +21,10 @@ Run locally with::
 from __future__ import annotations
 
 import os
+import base64
+import hashlib
+import hmac
+import struct
 import importlib
 import shutil
 import socket
@@ -40,6 +44,21 @@ from clients.core_client import AuditLogPayload, CoreServiceClient, CoreServiceE
 # services/interop-py/tests/test_cross_service.py -> services/
 SERVICES_DIR = Path(__file__).resolve().parents[2]
 CORE_GO_DIR = SERVICES_DIR / "core-go"
+
+
+def seed_mfa_session(db, user_id: str) -> str:
+    """Module fixture only; account-recovery tests enroll through real HTTP."""
+    session_id = str(uuid.uuid4())
+    with db.cursor() as cursor:
+        cursor.execute("INSERT INTO auth_account_security(user_id,encrypted_totp_secret,mfa_enrolled_at) VALUES(%s,%s,NOW()) ON CONFLICT DO NOTHING", (user_id,b"synthetic-module-fixture"))
+        cursor.execute("INSERT INTO auth_sessions(id,user_id,token_version,expires_at) SELECT %s,id,token_version,NOW()+INTERVAL '1 hour' FROM users WHERE id=%s", (session_id,user_id))
+    return session_id
+
+
+def totp(secret: str) -> str:
+    digest = hmac.new(base64.b32decode(secret), struct.pack(">Q", int(time.time())//30), hashlib.sha1).digest()
+    offset = digest[-1] & 15
+    return f"{(struct.unpack('>I',digest[offset:offset+4])[0] & 0x7fffffff)%1000000:06d}"
 
 
 class RefusedAuditClient(CoreServiceClient):
@@ -78,7 +97,7 @@ async def test_every_python_mutation_uses_real_authority_and_rolls_back_audit_fa
         patient_id = str(cursor.fetchone()[0])
         cursor.execute("INSERT INTO invoices (invoice_number,patient_id,created_by) VALUES (%s,%s,%s) RETURNING id", (unique, patient_id, user_id))
         invoice_id = str(cursor.fetchone()[0])
-    token = jwt.encode({"user_id": user_id, "sub": user_id, "username": unique, "role": "ADMIN", "department": "Test", "iss": "hims-core-go", "aud": "hims-clients", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
+    token = jwt.encode({"jti": seed_mfa_session(db,user_id), "user_id": user_id, "sub": user_id, "username": unique, "role": "ADMIN", "department": "Test", "iss": "hims-core-go", "aud": "hims-clients", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
 
     def snapshot():
         with db.cursor() as cursor:
@@ -95,6 +114,13 @@ async def test_every_python_mutation_uses_real_authority_and_rolls_back_audit_fa
                 before = snapshot()
                 for router in routers:
                     monkeypatch.setattr(router, "core_client", core_service.client())
+                with db.cursor() as cursor:
+                    cursor.execute("UPDATE auth_sessions SET last_activity_at=NOW()-INTERVAL '31 minutes' WHERE user_id=%s", (user_id,))
+                expired = await client.request(method, path, json=body)
+                assert expired.status_code == 403, expired.text
+                assert snapshot() == before, f"{action} changed data after idle expiry"
+                with db.cursor() as cursor:
+                    cursor.execute("UPDATE auth_sessions SET last_activity_at=NOW() WHERE user_id=%s", (user_id,))
                 with db.cursor() as cursor:
                     cursor.execute("UPDATE users SET is_active=false WHERE id=%s", (user_id,))
                 denied = await client.request(method, path, json=body)
@@ -187,13 +213,14 @@ async def test_user_grants_and_revocation_use_real_core_authority(core_service: 
         cursor.execute("INSERT INTO permissions (id,module,action) VALUES (%s,'laboratory',%s)", (permission,action))
     client = core_service.client()
     # A stale or misleading ADMIN token role cannot override the live record.
-    assert await client.check_authorization("ADMIN", "laboratory", action, user_id) is False
+    session_id = seed_mfa_session(db,user_id)
+    assert await client.check_authorization("ADMIN", "laboratory", action, user_id, session_id=session_id) is False
     with db.cursor() as cursor:
         cursor.execute("INSERT INTO user_permissions (user_id,permission_id,granted_by) VALUES (%s,%s,%s)", (user_id,permission,user_id))
-    assert await client.check_authorization(role, "laboratory", action, user_id) is True
+    assert await client.check_authorization(role, "laboratory", action, user_id, session_id=session_id) is True
     with db.cursor() as cursor:
         cursor.execute("UPDATE users SET is_active=false WHERE id=%s", (user_id,))
-    assert await client.check_authorization(role, "laboratory", action, user_id) is False
+    assert await client.check_authorization(role, "laboratory", action, user_id, session_id=session_id) is False
 
 
 async def test_lab_scaffold_never_reports_an_unpersisted_order_as_created(
@@ -212,7 +239,7 @@ async def test_lab_scaffold_never_reports_an_unpersisted_order_as_created(
     with db.cursor() as cursor:
         cursor.execute("INSERT INTO users (username,email,password_hash,first_name,last_name,role,department) VALUES (%s,%s,'synthetic','Synthetic','User','ADMIN','Test') RETURNING id", (identifier, identifier + "@example.invalid"))
         user_id = str(cursor.fetchone()[0])
-    token = jwt.encode({"user_id": user_id, "sub": user_id, "username": identifier, "role": "ADMIN", "department": "Test", "iss": "hims-core-go", "aud": "hims-clients", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
+    token = jwt.encode({"jti": seed_mfa_session(db,user_id), "user_id": user_id, "sub": user_id, "username": identifier, "role": "ADMIN", "department": "Test", "iss": "hims-core-go", "aud": "hims-clients", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://interop.test") as client:
             response = await client.post("/api/v1/laboratory/orders", headers={"Authorization": "Bearer " + token}, json={"order_id": identifier, "patient_id": "synthetic-patient", "test_code": "SYNTHETIC"})
@@ -303,6 +330,7 @@ def core_service(tmp_path_factory: pytest.TempPathFactory) -> Iterator[CoreServi
         "PORT": str(port),
         "DATABASE_URL": database_url,
         "JWT_SECRET": TEST_JWT_SECRET,
+        "MFA_ENCRYPTION_KEY": base64.b64encode(bytes([42])*32).decode(),
         "INTERNAL_SERVICE_KEY": TEST_INTERNAL_KEY,
     }
 
@@ -573,7 +601,7 @@ async def test_account_recovery_revokes_real_go_and_python_sessions(
     with db.cursor() as cursor:
         cursor.execute("INSERT INTO users(username,email,password_hash,first_name,last_name,role,department) VALUES(%s,%s,'synthetic','Synthetic','Actor','ADMIN','Test') RETURNING id", (unique, unique+"@example.invalid"))
         actor_id = str(cursor.fetchone()[0])
-    actor_token = jwt.encode({"user_id":actor_id,"sub":actor_id,"username":unique,"role":"ADMIN","department":"Test","iss":"hims-core-go","aud":"hims-clients","exp":datetime.now(timezone.utc)+timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
+    actor_token = jwt.encode({"jti":seed_mfa_session(db,actor_id),"user_id":actor_id,"sub":actor_id,"username":unique,"role":"ADMIN","department":"Test","iss":"hims-core-go","aud":"hims-clients","exp":datetime.now(timezone.utc)+timedelta(minutes=5)}, TEST_JWT_SECRET, algorithm="HS256")
     headers = {"Authorization":"Bearer "+actor_token}
     username = "recovery_"+uuid.uuid4().hex
     original = "Synthetic original password"
@@ -584,10 +612,20 @@ async def test_account_recovery_revokes_real_go_and_python_sessions(
             assert created.status_code == 201, created.text
             target = created.json()["id"]
 
+            backups: list[str] = []
+
             async def login(password: str, expected: int) -> str:
                 response = await core.post("/api/v1/auth/login",json={"username":username,"password":password})
                 assert response.status_code == expected, response.text
-                return response.json().get("token","")
+                if expected != 200:
+                    return ""
+                data = response.json()
+                assert data["mfa_required"] and "token" not in data
+                code = totp(data["secret"]) if data["enrollment_required"] else backups.pop()
+                verified = await core.post("/api/v1/auth/login",json={"username":username,"password":password,"code":code})
+                assert verified.status_code == 200, verified.text
+                backups.extend(verified.json().get("backup_codes") or [])
+                return verified.json()["token"]
 
             async def access(token: str, allowed: bool) -> None:
                 bearer = {"Authorization":"Bearer "+token}
@@ -616,6 +654,10 @@ async def test_account_recovery_revokes_real_go_and_python_sessions(
             await access(fresh,False)
             current = await login(replacement,200)
             await access(current,True)
+            session_id = jwt.decode(current,TEST_JWT_SECRET,algorithms=["HS256"],audience="hims-clients")["jti"]
+            with db.cursor() as cursor:
+                cursor.execute("UPDATE auth_sessions SET last_activity_at=NOW()-INTERVAL '31 minutes' WHERE id=%s",(session_id,))
+            await access(current,False)
             with db.cursor() as cursor:
                 cursor.execute("SELECT token_version FROM users WHERE id=%s",(target,))
                 assert cursor.fetchone()[0] == 2

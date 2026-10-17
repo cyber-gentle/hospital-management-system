@@ -27,7 +27,7 @@ async def check_permissions(user: TokenClaims, action: str) -> None:
             module="nhia",
             action=action,
             user_id=user.user_id,
-            token_version=user.token_version,
+            token_version=user.token_version, session_id=user.session_id,
         )
     except CoreServiceError as err:
         raise HTTPException(

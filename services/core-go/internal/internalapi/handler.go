@@ -112,8 +112,8 @@ func (h *Handler) HandleAuthzCheck(c *gin.Context) {
 			c.JSON(400, gin.H{"error": "Invalid session version"})
 			return
 		}
-		var currentVersion int
-		if err := h.db.QueryRowContext(c.Request.Context(), `SELECT role,token_version FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL`, userID).Scan(&role, &currentVersion); err != nil {
+		user, err := auth.TouchSession(c.Request.Context(), h.db, userID, c.Query("session_id"), version)
+		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusOK, gin.H{"allowed": false, "reason": "Inactive or unavailable account"})
 				return
@@ -121,10 +121,7 @@ func (h *Handler) HandleAuthzCheck(c *gin.Context) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authorization service unavailable"})
 			return
 		}
-		if version != currentVersion {
-			c.JSON(200, gin.H{"allowed": false, "reason": "Session revoked"})
-			return
-		}
+		role = user.Role
 	}
 	// ADMIN has universal access
 	if strings.EqualFold(role, "ADMIN") {

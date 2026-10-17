@@ -48,6 +48,11 @@ func (s *TokenService) Generate(userID, username, role, department string) (stri
 
 // GenerateVersion binds a login to the current account session generation.
 func (s *TokenService) GenerateVersion(userID, username, role, department string, version int) (string, error) {
+	return s.GenerateSession(userID, username, role, department, version, "")
+}
+
+// GenerateSession binds an access token to a Go-owned, MFA-authenticated session.
+func (s *TokenService) GenerateSession(userID, username, role, department string, version int, sessionID string) (string, error) {
 	if version < 0 {
 		return "", errors.New("invalid session version")
 	}
@@ -59,6 +64,7 @@ func (s *TokenService) GenerateVersion(userID, username, role, department string
 		Role:         role,
 		Department:   department,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        sessionID,
 			Issuer:    tokenIssuer,
 			Subject:   userID,
 			Audience:  jwt.ClaimStrings{"hims-clients"},

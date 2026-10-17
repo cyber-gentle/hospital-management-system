@@ -28,6 +28,9 @@ export async function apiRequest<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401 && token && endpoint !== '/auth/login' && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('hims-session-expired'));
+    }
     let errorMessage = `HTTP Error ${response.status}`;
     try {
       const errorJson = (await response.json()) as { message?: string; error?: string };

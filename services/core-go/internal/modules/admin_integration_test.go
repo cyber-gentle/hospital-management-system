@@ -1,6 +1,7 @@
 package modules_test
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -31,11 +32,11 @@ func TestAdministrationAuthorityAndAtomicAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	tokens := auth.NewTokenService([]byte("synthetic-admin-test-signing-key"))
-	token, err := tokens.Generate(f.user, "Forged name", "ADMIN", "Test")
+	token, err := tokens.GenerateSession(f.user, "Forged name", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, f.user))
 	if err != nil {
 		t.Fatal(err)
 	}
-	reviewToken, err := tokens.Generate(reviewer.user, "Synthetic", "ADMIN", "Test")
+	reviewToken, err := tokens.GenerateSession(reviewer.user, "Synthetic", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, reviewer.user))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +158,7 @@ func TestAccountResetReactivationAndSessionRevocation(t *testing.T) {
 	tokens := auth.NewTokenService([]byte("synthetic-session-test-signing-key"))
 	mint := func(id string) string {
 		t.Helper()
-		token, err := tokens.Generate(id, "Synthetic", "ADMIN", "Test")
+		token, err := tokens.GenerateSession(id, "Synthetic", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, id))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -166,7 +167,11 @@ func TestAccountResetReactivationAndSessionRevocation(t *testing.T) {
 	actorToken, oldToken, reviewToken := mint(actor.user), mint(target.user), mint(reviewer.user)
 	r := adminRouter(db, tokens)
 	r.GET("/me", auth.AuthRequired(tokens), auth.RequireActiveSession(db), func(c *gin.Context) { c.Status(200) })
-	r.POST("/login", auth.NewLoginHandler(auth.NewPostgresUserStore(db), tokens, auditlog.NewWriter(db)).Handle)
+	security, err := auth.NewSecurityHandler(db, tokens, auditlog.NewWriter(db), bytes.Repeat([]byte{42}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.POST("/login", security.HandleLogin)
 	denied := adminRouter(withoutAuditInsert(t, db), tokens)
 	snapshot := func() string {
 		t.Helper()
@@ -223,7 +228,7 @@ func TestAccountResetReactivationAndSessionRevocation(t *testing.T) {
 		if !active || !auth.VerifyPassword(hash, password) {
 			t.Fatal("Updated account credentials/state incorrect")
 		}
-		login := operationsRequest(r, "POST", "/login", fmt.Sprintf(`{"username":%q,"password":%q}`, username, password), "")
+		login := operationsRequest(r, "POST", "/login", fmt.Sprintf(`{"username":%q,"password":%q,"code":%q}`, username, password, testsupport.SeedRecoveryCode(t, db, target.user)), "")
 		if login.Code != 200 {
 			t.Fatalf("Fresh login failed: %d %s", login.Code, login.Body)
 		}

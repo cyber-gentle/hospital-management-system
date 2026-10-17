@@ -44,8 +44,13 @@ func TestPermissionGuardHonorsRoleAndUserGrants(t *testing.T) {
 	}
 	request := func(want int) {
 		t.Helper()
+		sessionID := testsupport.SeedMFASession(t, db, id)
 		r := gin.New()
-		r.Use(func(c *gin.Context) { c.Set(ContextUserID, id); c.Set(ContextUserRole, name) })
+		r.Use(func(c *gin.Context) {
+			c.Set(ContextUserID, id)
+			c.Set(ContextUserRole, name)
+			c.Set(ContextSessionID, sessionID)
+		})
 		r.GET("/", RequirePermission(db, name, "write"), func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))

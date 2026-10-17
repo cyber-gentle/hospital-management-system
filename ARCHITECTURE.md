@@ -1,6 +1,11 @@
 # ARCHITECTURE.md — Tech Blueprint
 ## Hospital Information Management System (HIMS)
 
+Authentication hardening (owner-approved 2026-10-17) extends the existing Go JWT
+authority with Go-owned MFA, lockout and session tables. Python forwards session
+IDs to Go authorization; it does not maintain independent security policy. See
+[AUTHENTICATION_SECURITY.md](AUTHENTICATION_SECURITY.md) for enforcement and rollout.
+
 > **Purpose of this file:** Locks in how this app is built, so an AI
 > coding assistant doesn't switch frameworks, invent an alternate folder
 > structure, or introduce a second database/ORM/auth pattern halfway

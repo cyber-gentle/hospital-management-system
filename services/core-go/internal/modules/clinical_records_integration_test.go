@@ -34,11 +34,11 @@ func TestClinicalRecordsAtomicAuditAndGates(t *testing.T) {
 		t.Fatal(err)
 	}
 	tokens := auth.NewTokenService([]byte("synthetic-clinical-record-test-key"))
-	token, err := tokens.Generate(f.user, "Forged name", "ADMIN", "Test")
+	token, err := tokens.GenerateSession(f.user, "Forged name", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, f.user))
 	if err != nil {
 		t.Fatal(err)
 	}
-	deniedToken, err := tokens.Generate(denied.user, "Forged name", "ADMIN", "Test")
+	deniedToken, err := tokens.GenerateSession(denied.user, "Forged name", "ADMIN", "Test", 0, testsupport.SeedMFASession(t, db, denied.user))
 	if err != nil {
 		t.Fatal(err)
 	}

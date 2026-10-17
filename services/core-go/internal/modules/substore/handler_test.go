@@ -46,7 +46,7 @@ func TestSubStoreEndpoints(t *testing.T) {
 	}
 
 	tokens := auth.NewTokenService([]byte("test-secret"))
-	token, _ := tokens.Generate(userID, "Test", "STORE_KEEPER", "STORES")
+	token, _ := tokens.GenerateSession(userID, "Test", "STORE_KEEPER", "STORES", 0, testsupport.SeedMFASession(t, db, userID))
 
 	// Setup Router
 	gin.SetMode(gin.TestMode)

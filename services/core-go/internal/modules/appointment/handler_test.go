@@ -46,7 +46,7 @@ func TestAppointmentEndpoints(t *testing.T) {
 	}
 
 	tokens := auth.NewTokenService([]byte("test-secret"))
-	token, _ := tokens.Generate(userID, "Test", "RECEPTIONIST", "FRONT_DESK")
+	token, _ := tokens.GenerateSession(userID, "Test", "RECEPTIONIST", "FRONT_DESK", 0, testsupport.SeedMFASession(t, db, userID))
 
 	// Setup Router
 	gin.SetMode(gin.TestMode)
