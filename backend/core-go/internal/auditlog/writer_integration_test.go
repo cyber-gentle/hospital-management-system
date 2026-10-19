@@ -237,7 +237,7 @@ func TestWriterReportsFailureWhenDatabaseUnavailable(t *testing.T) {
 	}
 }
 
-// The append-only guarantee. ARCHITECTURE.md requires that audit rows cannot be
+// The append-only guarantee. docs/architecture/ARCHITECTURE.md requires that audit rows cannot be
 // altered or removed; 000001_init_schema.up.sql enforces that with BEFORE
 // UPDATE/DELETE triggers. These two tests are what prove the guarantee holds
 // against a real database rather than only in the migration text.

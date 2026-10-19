@@ -1,7 +1,7 @@
 """JWT verification for the interop service.
 
 Token *issuance* belongs exclusively to the Go core service (see
-ARCHITECTURE.md, "Audit log / RBAC ownership"). This module only verifies
+docs/architecture/ARCHITECTURE.md, "Audit log / RBAC ownership"). This module only verifies
 tokens that Go issued -- it never signs, never manages sessions, and never
 mints a token of its own.
 """

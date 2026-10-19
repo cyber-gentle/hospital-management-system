@@ -1,8 +1,8 @@
-# ASSUMPTIONS.md — Decisions and Assumed Requirements
+# docs/requirements/ASSUMPTIONS.md — Decisions and Assumed Requirements
 ## Hospital Information Management System (HIMS)
 
 > Running log of requirements that are ambiguous, marked
-> `[VALIDATE WITH HOSPITAL]`, or `[UNRESOLVED]` in `PRD.md` / `docs/`.
+> `[VALIDATE WITH HOSPITAL]`, or `[UNRESOLVED]` in `docs/requirements/PRD.md` / `docs/`.
 >
 > Two kinds of entry appear here, and they are not equivalent:
 >
@@ -10,7 +10,7 @@
 >   person named. Build to it exactly.
 > - **ASSUMED** — no decision was made; the most defensible default was
 >   picked so work is not blocked. **These still need hospital
->   validation** (see `TASKS.md` §5) and may change. Build to them, but
+>   validation** (see `docs/project/TASKS.md` §5) and may change. Build to them, but
 >   do not treat them as confirmed requirements.
 >
 > When a hospital answer arrives, append the outcome to the entry rather
@@ -72,9 +72,9 @@ refuse to proceed until it is satisfied.
 There is **no hard UI lock** in the Nursing module. The UI may *show*
 deposit status and warn, but it is not the enforcement point.
 
-**A&E is always exempt** (per `PRD.md`).
+**A&E is always exempt** (per `docs/requirements/PRD.md`).
 
-This is consistent with `PRD.md`'s non-functional requirement that
+This is consistent with `docs/requirements/PRD.md`'s non-functional requirement that
 "RBAC [is] enforced at the API layer, not just hidden in the UI" — the
 same reasoning applies to a financial gate.
 
@@ -125,9 +125,9 @@ here; flagging it so it is not discovered late.
 
 ---
 
-## ASSUMED — everything else in `TASKS.md` §1
+## ASSUMED — everything else in `docs/project/TASKS.md` §1
 
-Not yet written up. Tracked as open items in `TASKS.md` §1:
+Not yet written up. Tracked as open items in `docs/project/TASKS.md` §1:
 
 - RBAC role list (`docs/06_SECURITY_RBAC.md` — which does not exist yet)
 - NHIA plan types
@@ -192,4 +192,4 @@ Lost-authenticator recovery uses single-use backup codes or an audited reset by
 another ADMIN after staff identity verification; administrators cannot reset
 their own MFA. These decisions supersede the narrower MFA roles and indefinite
 lockout descriptions in the team specifications. Implementation and verification
-are tracked in TASKS.md; this decision record does not claim enforcement is live.
+are tracked in docs/project/TASKS.md; this decision record does not claim enforcement is live.

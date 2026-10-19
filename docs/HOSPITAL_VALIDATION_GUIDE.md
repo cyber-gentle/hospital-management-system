@@ -3,7 +3,7 @@
 
 > **Document Status:** Official Stakeholder Engagement Questionnaire  
 > **Target Audience:** Medical Director, Chief Matron, Chief Accountant, Department Heads, ICT Directorate  
-> **Purpose:** Systematically resolves and confirms the open policy assumptions and `[VALIDATE WITH HOSPITAL]` items logged in `PRD.md`, `ASSUMPTIONS.md`, and `TASKS.md` (§1 & Line 447).
+> **Purpose:** Systematically resolves and confirms the open policy assumptions and `[VALIDATE WITH HOSPITAL]` items logged in `docs/requirements/PRD.md`, `docs/requirements/ASSUMPTIONS.md`, and `docs/project/TASKS.md` (§1 & Line 447).
 
 ---
 

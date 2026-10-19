@@ -1,6 +1,6 @@
 # Audit remediation — 2026-10-06
 
-This records the fixes following `PROJECT_AUDIT.md`. The original audit is
+This records the fixes following `docs/audits/PROJECT_AUDIT.md`. The original audit is
 historical evidence; this file describes the resulting working tree. Changes
 are committed after a history-preserving merge of the original backend branches. No production deployment or patient database was
 accessed. Existing user files and earlier migrations were preserved.
@@ -23,7 +23,7 @@ accessed. Existing user files and earlier migrations were preserved.
 | A22, A27 | Go 1.26.8, pgx 5.9.2, x/text 0.39.0, Tailwind 4.3.3, and a resolved Python 3.12/Linux lock. Go builder image is pinned. Runtime services run without root; Python auto-reload is disabled. |
 | A26, A28 | Journal/account validation and cash contra direction corrected; balance checks use kobo. CI runs frontend tests with `npm ci`; Go formatting and vet pass. Period-aware accounting and Python lint/type gates remain open. |
 
-Owner decisions are recorded in `ASSUMPTIONS.md`.
+Owner decisions are recorded in `docs/requirements/ASSUMPTIONS.md`.
 
 ## Verification
 
@@ -119,4 +119,4 @@ size and Python deprecation warnings remain non-fatal. Test data is synthetic.
 
 Reviewed all 12 proposals #5–#16, retained original commit ancestry, and corrected common CI regressions. Added atomic audited Go foundations for Mortuary, Audit, HR and Inventory, credentialed frontend access, no production browser success after rejection, honest unavailable audit verification, nullable unconfigured mortuary accrual, and synthetic stock receipt/issuance regressions. Policy-dependent writes remain audited 501 responses. Seven incomplete screens remain explicit demo previews; merging their source does not complete hospital workflows.
 
-Verification: full PostgreSQL-backed Go race suite, Go vet, exact-money/operations denial tests, 54 Python tests including real Go calls, 28 frontend regressions and strict production build. See PR_MERGE_AUDIT.md and BACKEND_OPERATIONS_ROUTES.md for scope, original heads, API states and outstanding work. User design-reference files and personal .gitignore edits are excluded.
+Verification: full PostgreSQL-backed Go race suite, Go vet, exact-money/operations denial tests, 54 Python tests including real Go calls, 28 frontend regressions and strict production build. See docs/audits/PR_MERGE_AUDIT.md and docs/api/BACKEND_OPERATIONS_ROUTES.md for scope, original heads, API states and outstanding work. User design-reference files and personal .gitignore edits are excluded.

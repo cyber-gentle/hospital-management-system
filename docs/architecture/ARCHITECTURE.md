@@ -1,10 +1,10 @@
-# ARCHITECTURE.md — Tech Blueprint
+# docs/architecture/ARCHITECTURE.md — Tech Blueprint
 ## Hospital Information Management System (HIMS)
 
 Authentication hardening (owner-approved 2026-10-17) extends the existing Go JWT
 authority with Go-owned MFA, lockout and session tables. Python forwards session
 IDs to Go authorization; it does not maintain independent security policy. See
-[AUTHENTICATION_SECURITY.md](AUTHENTICATION_SECURITY.md) for enforcement and rollout.
+[AUTHENTICATION_SECURITY.md](../security/AUTHENTICATION_SECURITY.md) for enforcement and rollout.
 
 > **Purpose of this file:** Locks in how this app is built, so an AI
 > coding assistant doesn't switch frameworks, invent an alternate folder
@@ -83,7 +83,7 @@ Hybrid: on-premise application + database server at the hospital, with
 encrypted nightly backup to cloud. Do not design features that assume
 pure-cloud, always-online connectivity — nursing/vitals entry in
 particular must degrade gracefully offline (see `docs/04_TECH_STACK.md`
-and `PRD.md` non-functional requirements).
+and `docs/requirements/PRD.md` non-functional requirements).
 
 **Multi-hospital note:** this system is designed to be sold and deployed
 to more than one hospital over time — but as **separate, single-tenant
@@ -101,13 +101,16 @@ Two backend services, one frontend, sharing one database and one repo.
 
 ```
 hospital-hims/
-├── PRD.md                      # this feature map
-├── ARCHITECTURE.md             # this file
+├── README.md                   # entry point and documentation index
 ├── AGENTS.md                   # AI behavior guardrails
-├── TASKS.md                    # active task checklist
-├── docs/                       # full business/technical documentation set
-│   ├── 00_README.md
-│   ├── 01_PRD.md ... 09_PROPOSAL_SUMMARY.md
+├── docs/
+│   ├── architecture/            # architecture blueprint
+│   ├── requirements/            # project PRD and recorded decisions
+│   ├── api/                     # route design and operations contracts
+│   ├── security/                # authentication and recovery deployment
+│   ├── project/                 # task checklist and integration status
+│   ├── audits/                  # audit findings, fixes and merge evidence
+│   └── *.md                     # existing numbered specifications and guides
 │
 ├── backend/
 │   ├── core-go/                 # Go — 17 modules, owns auth + audit
@@ -176,7 +179,7 @@ hospital-hims/
 **Rules:**
 - Every new module goes in the correct service's `modules/` folder per
   the ownership list above — do not add a new module to `interop-py`
-  without updating `ARCHITECTURE.md`'s module-ownership table first.
+  without updating `docs/architecture/ARCHITECTURE.md`'s module-ownership table first.
 - Migrations live in `core-go/migrations/` — Go owns schema changes even
   for tables the Python service reads/writes (Lab/NHIA/Radiology tables),
   to keep one migration history instead of two.

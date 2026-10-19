@@ -9,7 +9,7 @@ Scheduling, Accounting, and Sub-store Management.
 `/api/v1/<module>/...`. The frontend calls both services through one
 reverse proxy, so from the browser's perspective there is one API surface
 — which service actually handles a route is a backend concern (see
-`ARCHITECTURE.md` module-ownership table).
+`docs/architecture/ARCHITECTURE.md` module-ownership table).
 
 Internal-only routes (`/internal/...`) are never exposed through the
 reverse proxy — reachable only from the Python service to the Go service,
@@ -185,7 +185,7 @@ independent consumer for a version prefix to protect.
 
 Every mutating route below calls `POST /internal/audit-log` on the Go
 service before returning, and every permission-sensitive route calls
-`GET /internal/authz/check` first — see `ARCHITECTURE.md`
+`GET /internal/authz/check` first — see `docs/architecture/ARCHITECTURE.md`
 "Audit log / RBAC ownership" table. None of these routes write directly
 to `audit_logs`, `users`, or permission tables.
 

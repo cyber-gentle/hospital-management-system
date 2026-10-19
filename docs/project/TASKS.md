@@ -1,7 +1,7 @@
-# TASKS.md — Step-by-Step Checklist
+# docs/project/TASKS.md — Step-by-Step Checklist
 ## Hospital Information Management System (HIMS)
 
-> Linear roadmap broken down from `PRD.md` / `docs/08_ROADMAP_PHASES.md`.
+> Linear roadmap broken down from `docs/requirements/PRD.md` / `docs/08_ROADMAP_PHASES.md`.
 > Work top to bottom within each section. Check off `[x]` as completed.
 > Add newly discovered tasks under the relevant section rather than doing
 > them silently. Do not skip ahead to a later Build Group section before
@@ -20,7 +20,7 @@
 
 ## 0. Project Setup
 
-- [x] Initialize repo structure per `ARCHITECTURE.md` (`backend/core-go/`, `backend/interop-py/`, `frontend/`)
+- [x] Initialize repo structure per `docs/architecture/ARCHITECTURE.md` (`backend/core-go/`, `backend/interop-py/`, `frontend/`)
 - [x] Set up Go core service skeleton (Gin/Echo/Fiber — pick one)
 - [x] Set up Python interop service skeleton (FastAPI)
 - [x] Set up frontend (React + Tailwind) project skeleton
@@ -74,40 +74,39 @@ the rest are outstanding. See the audit notes for file/line references.
       13 Go tests skip, 8 Python tests skip).
 
 **Step 3 — spec/implementation drift (DONE)**
-- [x] Internal routes were `/internal/v1/...` in `10_API_ROUTES.md` but
+- [x] Internal routes were `/internal/v1/...` in `docs/api/10_API_ROUTES.md` but
       `/internal/audit-log` and `/internal/authz/check` in code. Aligned the
       **doc to the code**: both services already agreed with each other, the
       paths are pinned by the new cross-service test, and the internal API is
       deployed as one unit from a single compose file — so a version prefix
       protects no independent consumer. The doc's convention note now says so
       explicitly rather than leaving the omission looking like an oversight.
-- [x] `10_API_ROUTES.md` §"Go Core Service" heading said 14 modules while
+- [x] `docs/api/10_API_ROUTES.md` §"Go Core Service" heading said 14 modules while
       listing 17 (and the same file's own header already said 17). Corrected to
       17 and re-counted against the list.
-- [ ] `files/` is an untracked stale duplicate of the root docs (`AGENTS.md`,
-      `ARCHITECTURE.md`, `PRD.md`, `10_API_ROUTES.md` byte-identical;
-      `TASKS.md` already behind). Editing the root copy widens the gap. Needs a
-      decision: delete, gitignore, or leave — rule 1 means asking first.
-- [ ] Not yet checked: whether the *public* routes in `10_API_ROUTES.md` match
+- [x] Reviewed all five stale documents in `files/`; no unique requirements needed
+      transferring. Owner approved deleting the five copies and empty directory
+      on 2026-10-19. Current documentation is organized under `docs/`.
+- [ ] Not yet checked: whether the *public* routes in `docs/api/10_API_ROUTES.md` match
       what is implemented. Step 3 only covered the internal routes. Spot-check
       is cheap now that the internal ones are pinned by tests; a full pass
       belongs with the module build-out.
 
-**Step 4 — needs a human decision (see PRD.md "Two integration decisions")**
+**Step 4 — needs a human decision (see docs/requirements/PRD.md "Two integration decisions")**
 - [x] **DECIDED 2026-09-28:** discharge-checklist → billing trigger is **100%
-      completion only**, with no nurse sign-off gate. Recorded in `ASSUMPTIONS.md`
+      completion only**, with no nurse sign-off gate. Recorded in `docs/requirements/ASSUMPTIONS.md`
       together with the fact that this **deliberately differs** from the billing
       client material (which says 100% *plus* sign-off) — so nobody later
-      "corrects" it back. `PRD.md` updated from `[UNRESOLVED]` to resolved.
+      "corrects" it back. `docs/requirements/PRD.md` updated from `[UNRESOLVED]` to resolved.
 - [x] **DECIDED 2026-09-28:** admission deposit gate is a **backend flag,
       enforced at the API layer**, no hard UI lock, A&E exempt. Recorded in
-      `ASSUMPTIONS.md`. *Corrected 2026-09-29:* an earlier note here said no
+      `docs/requirements/ASSUMPTIONS.md`. *Corrected 2026-09-29:* an earlier note here said no
       client material covered this. Wrong — the design `.docx` does, and it
       names the enforcement point: the deposit must be paid "before the nurse
       or Doctor can access their folder". The decision stands (an API-enforced
       flag is what produces that behaviour), but the gate must cover clinician
-      folder access, not just admission intake. See `ASSUMPTIONS.md`.
-- [x] Created `ASSUMPTIONS.md`, which `TASKS.md` §1 called for. It separates
+      folder access, not just admission intake. See `docs/requirements/ASSUMPTIONS.md`.
+- [x] Created `docs/requirements/ASSUMPTIONS.md`, which `docs/project/TASKS.md` §1 called for. It separates
       **DECIDED** entries from **ASSUMED** ones, since only the former are safe
       to build against without further validation.
 - [x] Create the `docs/` directory. Generated official reference documentation
@@ -134,7 +133,7 @@ the rest are outstanding. See the audit notes for file/line references.
       despite AGENTS.md requiring lint-clean code. CI runs `go vet` and
       `py_compile` (syntax only). *Partly addressed:* a `gofmt -l` check was
       added to the Go job; the Python side and the fuller linters remain.
-- [ ] No reverse proxy in either compose file, though ARCHITECTURE.md and §0
+- [ ] No reverse proxy in either compose file, though docs/architecture/ARCHITECTURE.md and §0
       above both call for one; `vite.config.ts` proxies `/api` to `:8080` only,
       so Lab/NHIA/Radiology routes 404 through the dev proxy.
 - [ ] Two near-identical compose files (root and `infra/`) that have already
@@ -170,7 +169,7 @@ the rest are outstanding. See the audit notes for file/line references.
       the Vite dev origin, with `*` rejected as a startup error.
 - [ ] `audit_logs` has both `timestamp` and `created_at` (redundant).
 - [ ] Append-only audit enforcement uses triggers, not the DB-role grant
-      ARCHITECTURE.md specifies — an undocumented deviation (functionally
+      docs/architecture/ARCHITECTURE.md specifies — an undocumented deviation (functionally
       equivalent, arguably stronger, but the doc should say so).
 - [ ] No frontend test runner.
 
@@ -180,12 +179,12 @@ the rest are outstanding. See the audit notes for file/line references.
 Since hospital validation won't happen until after the complete system is
 built, resolve these by picking the most defensible default from
 `docs/` and documenting the assumption in code comments / a running
-`ASSUMPTIONS.md` — don't leave them silently unresolved:
+`docs/requirements/ASSUMPTIONS.md` — don't leave them silently unresolved:
 
 - [ ] Document assumed discharge-checklist → billing trigger rule
-      (`PRD.md` "Two integration decisions" #1) — pick one, note it's assumed
+      (`docs/requirements/PRD.md` "Two integration decisions" #1) — pick one, note it's assumed
 - [ ] Document assumed admission-deposit enforcement rule
-      (`PRD.md` "Two integration decisions" #2) — pick one, note it's assumed
+      (`docs/requirements/PRD.md` "Two integration decisions" #2) — pick one, note it's assumed
 - [ ] Document assumed RBAC role list (`docs/06_SECURITY_RBAC.md`)
 - [ ] Document assumed NHIA plan types
 - [ ] Document assumed ward/bed count and department list (for demo data)
@@ -382,7 +381,7 @@ from: Laboratory, NHIA/HMO, GOPD, Radiology)*
 
 **Housekeeping:** when a task reveals a new requirement, sub-task, or a
 question that needs hospital input, add it under the relevant section
-here (or as a new `[UNRESOLVED]` note in `PRD.md` if it's a business
+here (or as a new `[UNRESOLVED]` note in `docs/requirements/PRD.md` if it's a business
 decision) rather than resolving it silently.
 
 ## Local team integration verification (2026-10-01)
@@ -390,7 +389,7 @@ decision) rather than resolving it silently.
 - [x] Verify Group 1 mock patient journey and fix frontend failures (historical demo-only verification; retained in Git history).
 - [x] Merge all four fetched feature branches into local main, resolve frontend conflicts, preserve original commit objects and contributor metadata. No push performed.
 - [x] Verify merged frontend: 13 tests, production build, and browser navigation; Python: 32 tests pass.
-- [x] Run Go and database-backed cross-service tests in disposable PostgreSQL (2026-10-06); complete Go race suite and real Python-to-Go cases passed. See AUDIT_FIXES.md.
+- [x] Run Go and database-backed cross-service tests in disposable PostgreSQL (2026-10-06); complete Go race suite and real Python-to-Go cases passed. See docs/audits/AUDIT_FIXES.md.
 
 
 ## Full project audit follow-ups (2026-10-06)
@@ -409,10 +408,10 @@ decision) rather than resolving it silently.
 - [x] Restore frontend validation rejection, UTC period selection, ledger-based negative-balance coverage, and payment-date reconciliation (FR-GL-04, FR-GL-05). Default reports use the current UTC month; historical monthly, quarterly and calendar-year selections retain their boundaries.
 - [x] Add Go-owned migration 000019 for Python Laboratory, NHIA/HMO and Radiology tables; verify a fresh PostgreSQL database without ORM schema creation.
 - [x] Require successful Go authorization and audit acknowledgement before Python commits; roll back audit failures and partial lab requests. Exercise all 11 mutating Python routes against the real Go APIs, including live-user revocation and audit-key rejection.
-- [x] Reconcile Python regression fixtures with the current API/schema and document the separate HTTP/SQL commit limitation in AUDIT_FIXES.md.
+- [x] Reconcile Python regression fixtures with the current API/schema and document the separate HTTP/SQL commit limitation in docs/audits/AUDIT_FIXES.md.
 - [ ] Make Python data and audit outcomes atomic across services, including process termination and ambiguous commit outcomes. The current acknowledgement-before-commit fix prevents audit outages from persisting unlogged mutations, but does not provide distributed atomicity.
 
-- [x] Complete full project source audit, branch integration review, builds/tests, dependency scans, and isolated synthetic reproductions. See `PROJECT_AUDIT.md` for scope, evidence, 31 findings, and verification limits.
+- [x] Complete full project source audit, branch integration review, builds/tests, dependency scans, and isolated synthetic reproductions. See `docs/audits/PROJECT_AUDIT.md` for scope, evidence, 31 findings, and verification limits.
 - [x] A01–A04: Contain wallet webhooks by disabling them until provider selection; add positive-money constraints, module RBAC, atomic data/audit transactions, and real PostgreSQL failure/denial tests. Owner approved transaction support in the existing writer; original behavior/tests retained.
 - [x] A05–A07, A17–A18: Integrate reviewed Group 1 backend branches, align successful frontend/API contracts and container routing, and separate demo/local fallback behavior from authoritative clinical and financial actions.
 - [x] A08–A11, A26: Correct repeated journal posting, silent persistence failures, NHIA payable/rounding calculations, period-aware statements, and ledger validation; verify business logic and reconciliation.
@@ -444,7 +443,7 @@ decision) rather than resolving it silently.
 - [ ] Complete production contract integration for the seven preview screens: NHIA, Radiology, Theatre, Emergency, Maternity, Reporting, Administration. Original UI source is retained behind explicit demo mode.
 - [ ] Configure hospital-approved body release/payment/coroner rules, leave review policy, purchase approval/receipt policy, chamber slots, sub-store mappings and least-privilege role grants before enabling blocked actions.
 - [ ] Implement authoritative audit seal verification and approved anomaly detection rules; status remains UNAVAILABLE.
-- [ ] Verify the real hospital end-to-end workflows before declaring any Build Group exit complete. Existing module completion checkmarks do not establish readiness; see PR_MERGE_AUDIT.md.
+- [ ] Verify the real hospital end-to-end workflows before declaring any Build Group exit complete. Existing module completion checkmarks do not establish readiness; see docs/audits/PR_MERGE_AUDIT.md.
 
 ## Preview integration work (2026-10-15)
 
@@ -480,11 +479,11 @@ Current task: Administration with owner-approved ADMIN write / AUDITOR review po
 
 - [x] Session-version revocation explicitly approved by the owner on 2026-10-16. Added migration 000024, Go-issued session versions, authoritative checks in Go and forwarding from all Python actions. Existing audit writer remains unchanged.
 
-- [x] Verify the supported seven-screen integration scope: full Go race suite with real PostgreSQL, go vet/gofmt, 56 Python tests with actual Go cross-service calls, 31 frontend tests and production build. See PREVIEW_INTEGRATION.md. Password reset/reactivation completed on 2026-10-16; hospital-policy-dependent actions remain open.
+- [x] Verify the supported seven-screen integration scope: full Go race suite with real PostgreSQL, go vet/gofmt, 56 Python tests with actual Go cross-service calls, 31 frontend tests and production build. See docs/project/PREVIEW_INTEGRATION.md. Password reset/reactivation completed on 2026-10-16; hospital-policy-dependent actions remain open.
 
 - [x] Verify account recovery on 2026-10-16: full Go race suite, go vet/gofmt, 63 Python tests and 32 frontend tests plus production build. Real HTTP tests prove old credentials/sessions fail and fresh logins succeed across Go and all three Python modules after reset/reactivation.
 
-- [ ] Reconcile the newly added team specifications (origin/main ec3e4df) with recorded owner decisions and verified functionality: deposit enforcement, discharge override/billing, JWT constants, ADMIN/AUDITOR authority, MFA/lockout and full-system QA claims. See PREVIEW_INTEGRATION.md; no new hospital policy is inferred from the conflicting descriptions.
+- [ ] Reconcile the newly added team specifications (origin/main ec3e4df) with recorded owner decisions and verified functionality: deposit enforcement, discharge override/billing, JWT constants, ADMIN/AUDITOR authority, MFA/lockout and full-system QA claims. See docs/project/PREVIEW_INTEGRATION.md; no new hospital policy is inferred from the conflicting descriptions.
 
 ## Authentication hardening (FR-SEC-01, FR-SEC-03; 2026-10-17)
 
@@ -494,7 +493,7 @@ Owner requested MFA, automatic lockout and enforced security settings on the exi
 - [x] Add audited enrollment, verification, recovery, automatic lockout and ADMIN unlocking without bypassing MFA.
 - [x] Persist and enforce approved security settings in Go; Python uses Go's session/authorization decisions. Policy views are read-only.
 - [x] Integrate real login/enrollment/security controls; verify replay, concurrent attempts, expiry, lockout, audit rollback and actual Go/Python boundaries.
-- [x] Verify 63 Python tests, additional all-mutation idle-expiry assertions, 33 frontend tests and production build. Deployment requires migration 000025, a persistent MFA_ENCRYPTION_KEY and coordinated Go/Python/frontend rollout; see AUTHENTICATION_SECURITY.md.
+- [x] Verify 63 Python tests, additional all-mutation idle-expiry assertions, 33 frontend tests and production build. Deployment requires migration 000025, a persistent MFA_ENCRYPTION_KEY and coordinated Go/Python/frontend rollout; see docs/security/AUTHENTICATION_SECURITY.md.
 - [x] Verify the full Go race suite with real PostgreSQL, the additional MFA audit-rollback test, go vet and gofmt. The existing audit writer is unchanged.
 
 ## Backend folder organization — approved 2026-10-19
@@ -510,3 +509,10 @@ Validation: Go tests against disposable PostgreSQL, go vet, 63 Python tests incl
 ## Documentation cleanup — approved 2026-10-19
 
 - [x] Remove the three owner-approved stale frontend status, branch-conflict and demo QA reports; preserve their Git history and update the task reference.
+
+## Root documentation organization — approved 2026-10-19
+
+- [x] Move eleven root documents into the approved architecture, requirements, api, security, project and audits folders under docs/.
+- [x] Keep root README.md, AGENTS.md and startup configuration discoverable; add a README documentation index and update references.
+- [x] Delete the five explicitly approved stale copies in files/ after verifying no unique requirements need transferring.
+- [x] Verify document links and staged scope; commit on the existing feature branch.

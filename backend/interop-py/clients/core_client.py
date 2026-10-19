@@ -1,6 +1,6 @@
 """The interop service's single point of contact with the Go core service.
 
-Per ARCHITECTURE.md:
+Per docs/architecture/ARCHITECTURE.md:
 - Python never writes directly to audit_logs, users, or permission tables.
 - Python never reimplements the RBAC permission matrix.
 - This is the only module that talks to the core service; module code must not

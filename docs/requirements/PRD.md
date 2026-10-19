@@ -1,4 +1,4 @@
-# PRD.md — Feature Map
+# docs/requirements/PRD.md — Feature Map
 ## Hospital Information Management System (HIMS)
 
 > **Purpose of this file:** This is the working reference for any AI coding
@@ -36,7 +36,7 @@ white-label features into the running system itself.
 
 ## Full Module List — 20 modules (all in scope — see `docs/01_PRD.md` §4 for detail)
 
-**Go core service (17 modules — owns auth + audit, see `ARCHITECTURE.md`):**
+**Go core service (17 modules — owns auth + audit, see `docs/architecture/ARCHITECTURE.md`):**
 1. Medical Records
 2. Nursing Services
 3. Accounts & Billing
@@ -55,7 +55,7 @@ white-label features into the running system itself.
 16. **Accounting (General Ledger)** — hospital institutional bookkeeping (cash/bank, journal vouchers, financial statements); distinct from Billing's patient invoicing
 17. **Sub-store Management** — department/ward-level stock (already implied in the Nursing Ward Management mockup's ward-level supply table); distinct from Inventory & Procurement's hospital-wide central store
 
-**Python interop service (3 modules — HL7/FHIR-heavy, see `ARCHITECTURE.md`):**
+**Python interop service (3 modules — HL7/FHIR-heavy, see `docs/architecture/ARCHITECTURE.md`):**
 18. Laboratory (LIS)
 19. NHIA/HMO
 20. Radiology/Imaging
@@ -81,14 +81,14 @@ patient record and billing engine are stable — they depend on it.
 1. **Discharge → Billing trigger**: threshold for discharge checklist
    completion before invoice generation. **[RESOLVED 2026-09-28 —
    decided: 100% checklist completion, no nurse sign-off gate. See
-   `ASSUMPTIONS.md` — note this deliberately differs from the billing
+   `docs/requirements/ASSUMPTIONS.md` — note this deliberately differs from the billing
    client material, which is not authoritative.]**
 2. **Admission deposit gate**: hard UI lock in Nursing module vs. backend
    flag. A&E is always exempt. **[RESOLVED 2026-09-28 — decided:
    backend flag, enforced at the API layer, no hard UI lock. See
-   `ASSUMPTIONS.md`.]**
+   `docs/requirements/ASSUMPTIONS.md`.]**
 
-Both decisions are recorded in full in `ASSUMPTIONS.md`, including the
+Both decisions are recorded in full in `docs/requirements/ASSUMPTIONS.md`, including the
 open sub-questions that remain unanswered. Any further change to either
 behaviour should be recorded there as a new decision rather than made
 silently.
