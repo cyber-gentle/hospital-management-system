@@ -387,7 +387,7 @@ decision) rather than resolving it silently.
 
 ## Local team integration verification (2026-10-01)
 
-- [x] Verify Group 1 mock patient journey and fix frontend failures; see frontend/QA_GROUP1.md.
+- [x] Verify Group 1 mock patient journey and fix frontend failures (historical demo-only verification; retained in Git history).
 - [x] Merge all four fetched feature branches into local main, resolve frontend conflicts, preserve original commit objects and contributor metadata. No push performed.
 - [x] Verify merged frontend: 13 tests, production build, and browser navigation; Python: 32 tests pass.
 - [x] Run Go and database-backed cross-service tests in disposable PostgreSQL (2026-10-06); complete Go race suite and real Python-to-Go cases passed. See AUDIT_FIXES.md.
@@ -506,3 +506,7 @@ Owner requested MFA, automatic lockout and enforced security settings on the exi
 Validation: Go tests against disposable PostgreSQL, go vet, 63 Python tests including the real Go boundary, and both Compose build-context checks passed. Existing audit writer and SQL migrations are byte-identical.
 
 - [ ] Follow-up discovered during relocation: align infra/docker-compose.yml with the root Compose MFA key and frontend proxy environment; the alternate file already lacked these settings before this move.
+
+## Documentation cleanup — approved 2026-10-19
+
+- [x] Remove the three owner-approved stale frontend status, branch-conflict and demo QA reports; preserve their Git history and update the task reference.
