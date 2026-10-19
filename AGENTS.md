@@ -50,8 +50,8 @@
 ## Code standards
 
 - **Backend is two services, not one — know which one you're in.** Go
-  core (`services/core-go/`) owns 17 modules plus auth + audit. Python
-  interop (`services/interop-py/`) owns exactly 3: Laboratory, NHIA/HMO,
+  core (`backend/core-go/`) owns 17 modules plus auth + audit. Python
+  interop (`backend/interop-py/`) owns exactly 3: Laboratory, NHIA/HMO,
   Radiology. Check `ARCHITECTURE.md`'s ownership table before assuming
   where a module's code belongs.
 - **Go service:** standard Go conventions — explicit error handling

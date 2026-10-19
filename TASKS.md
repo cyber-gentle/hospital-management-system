@@ -20,7 +20,7 @@
 
 ## 0. Project Setup
 
-- [x] Initialize repo structure per `ARCHITECTURE.md` (`services/core-go/`, `services/interop-py/`, `frontend/`)
+- [x] Initialize repo structure per `ARCHITECTURE.md` (`backend/core-go/`, `backend/interop-py/`, `frontend/`)
 - [x] Set up Go core service skeleton (Gin/Echo/Fiber — pick one)
 - [x] Set up Python interop service skeleton (FastAPI)
 - [x] Set up frontend (React + Tailwind) project skeleton
@@ -496,3 +496,13 @@ Owner requested MFA, automatic lockout and enforced security settings on the exi
 - [x] Integrate real login/enrollment/security controls; verify replay, concurrent attempts, expiry, lockout, audit rollback and actual Go/Python boundaries.
 - [x] Verify 63 Python tests, additional all-mutation idle-expiry assertions, 33 frontend tests and production build. Deployment requires migration 000025, a persistent MFA_ENCRYPTION_KEY and coordinated Go/Python/frontend rollout; see AUTHENTICATION_SECURITY.md.
 - [x] Verify the full Go race suite with real PostgreSQL, the additional MFA audit-rollback test, go vet and gofmt. The existing audit writer is unchanged.
+
+## Backend folder organization — approved 2026-10-19
+
+- [x] Move both backend services from the former services directory to backend/, preserving all files and module ownership.
+- [x] Update Go imports, Docker/CI paths, cross-service tests and documentation.
+- [x] Verify builds, existing audit/RBAC tests and real Go/Python integration; commit on the existing feature branch.
+
+Validation: Go tests against disposable PostgreSQL, go vet, 63 Python tests including the real Go boundary, and both Compose build-context checks passed. Existing audit writer and SQL migrations are byte-identical.
+
+- [ ] Follow-up discovered during relocation: align infra/docker-compose.yml with the root Compose MFA key and frontend proxy environment; the alternate file already lacked these settings before this move.

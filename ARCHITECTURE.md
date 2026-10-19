@@ -109,7 +109,7 @@ hospital-hims/
 │   ├── 00_README.md
 │   ├── 01_PRD.md ... 09_PROPOSAL_SUMMARY.md
 │
-├── services/
+├── backend/
 │   ├── core-go/                 # Go — 17 modules, owns auth + audit
 │   │   ├── cmd/
 │   │   │   └── server/

@@ -3,7 +3,7 @@
 
 > **Document Version:** 1.0.0  
 > **Database Engine:** PostgreSQL 16.x  
-> **Schema Ownership:** Go Core Service (`services/core-go/migrations/`)  
+> **Schema Ownership:** Go Core Service (`backend/core-go/migrations/`)<br>
 > **Data Integrity Rules:** No Hard Deletion, Exact Decimal Currency, Immutable Audit Triggers
 
 ---

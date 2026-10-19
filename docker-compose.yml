@@ -19,7 +19,7 @@ services:
 
   core-go:
     build:
-      context: ./services/core-go
+      context: ./backend/core-go
       dockerfile: Dockerfile
     container_name: hims-core-go
     restart: unless-stopped
@@ -37,7 +37,7 @@ services:
 
   interop-py:
     build:
-      context: ./services/interop-py
+      context: ./backend/interop-py
       dockerfile: Dockerfile
     container_name: hims-interop-py
     restart: unless-stopped

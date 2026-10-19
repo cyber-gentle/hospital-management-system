@@ -42,7 +42,7 @@ All 7 modules of Build Group 1 are committed to your local feature branch (`feat
 ## 3. Key Architectural Decisions & Guardrails Honored
 
 1. **Strictly Frontend Scope:**
-   - No backend files (`services/core-go/`, `services/interop-py/`) or database migrations were touched, modified, or deleted, respecting teammate ownership and `AGENTS.md` Rule #1 & #5.
+   - No backend files (`backend/core-go/`, `backend/interop-py/`) or database migrations were touched, modified, or deleted, respecting teammate ownership and `AGENTS.md` Rule #1 & #5.
 2. **Discharge Checklist → Billing Trigger Decision (`FR-NS-10` / `FR-AC-06`):**
    - Configured as a **strict 100% completion requirement** on the Nursing Discharge Checklist before discharge billing is triggered.
    - Included an **audited Doctor/Matron override** mechanism with required rationale for emergency discharges.
