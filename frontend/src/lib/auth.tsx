@@ -67,6 +67,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem("hims_user");
   };
 
+  useEffect(() => {
+    const expire = () => {
+      setToken(null); setUser(null);
+      localStorage.removeItem('hims_auth_token'); localStorage.removeItem('hims_user');
+    };
+    window.addEventListener('hims-session-expired', expire);
+    return () => window.removeEventListener('hims-session-expired', expire);
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{

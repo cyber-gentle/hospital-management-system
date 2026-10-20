@@ -70,7 +70,7 @@ Every permission consists of `<module>:<action>`. Actions are categorized into f
 
 ## 4. Authentication & JWT Token Standard
 
-1. **Token Issuer:** Go Core service exclusively (`services/core-go/internal/auth`).
+1. **Token Issuer:** Go Core service exclusively (`backend/core-go/internal/auth`).
 2. **Signature Algorithm:** HMAC-SHA256 (`HS256`) with minimum 256-bit random secret.
 3. **Token Claims:**
    - `sub`: User ID (`UUID`)

@@ -14,7 +14,7 @@ Thumbs.db
 *.swo
 
 # Go
-services/core-go/bin/
+backend/core-go/bin/
 *.exe
 *.test
 *.out

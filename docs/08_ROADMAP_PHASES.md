@@ -3,7 +3,7 @@
 
 > **Document Version:** 1.0.0  
 > **Roadmap Strategy:** Linear Phase Completion, Zero-Drift Integration, Hospital-Gated Rollout  
-> **Reference:** `TASKS.md` (§0 through §6)
+> **Reference:** `docs/project/TASKS.md` (§0 through §6)
 
 ---
 
@@ -94,7 +94,7 @@ To avoid building downstream clinical features on unstable foundations, the engi
 
 ## 3. Phase 5: First Hospital Engagement & Pilot Validation
 
-*Current Active Phase (per `TASKS.md` §5):*
+*Current Active Phase (per `docs/project/TASKS.md` §5):*
 1. **Interactive Demo Environment:** The system runs live in Docker Compose using synthetic data fixtures representing realistic hospital encounters.
 2. **Department Head Interviews:** Conduct interviews using `docs/HOSPITAL_VALIDATION_GUIDE.md` across:
    - Medical Director (Admission deposit rules, emergency exemptions).
@@ -104,7 +104,7 @@ To avoid building downstream clinical features on unstable foundations, the engi
    - Procurement & Pharmacy (Purchase order thresholds, formulary substitutions).
    - HR Directorate (Leave approval chains, shift models).
    - ICT Directorate (Security policies, session timeouts, backup retention).
-3. **Resolution of Assumptions:** Update `ASSUMPTIONS.md` to convert assumed baseline policies into confirmed hospital decisions.
+3. **Resolution of Assumptions:** Update `docs/requirements/ASSUMPTIONS.md` to convert assumed baseline policies into confirmed hospital decisions.
 
 ---
 

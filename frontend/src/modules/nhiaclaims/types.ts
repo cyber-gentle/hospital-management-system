@@ -5,7 +5,7 @@ export interface HmoProvider {
   active: boolean;
 }
 
-export type ClaimStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "PAID";
+export type ClaimStatus = "PENDING" | "PARTIAL" | "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "PAID";
 
 export interface NhiaClaim {
   id: string;
@@ -14,9 +14,11 @@ export interface NhiaClaim {
   nhiaNumber: string;
   providerId: string;
   diagnosis: string;
-  totalAmount: number;
-  coPayAmount: number;
-  claimAmount: number;
+  totalAmount: number | null;
+  coPayAmount: number | null;
+  claimAmount: number | string;
+  invoiceId?: string;
+  claimReference?: string | null;
   status: ClaimStatus;
   createdAt: string;
   updatedAt: string;

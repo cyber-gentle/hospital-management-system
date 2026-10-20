@@ -4,7 +4,7 @@
 > **Document Version:** 1.0.0  
 > **Classification:** Engineering & Clinical Operations Specification  
 > **Target Deployment:** Single-Tenant Federal / State Tertiary Teaching Hospital  
-> **Architecture Reference:** `ARCHITECTURE.md` (Polyglot Go Core + Python Interop)
+> **Architecture Reference:** `docs/architecture/ARCHITECTURE.md` (Polyglot Go Core + Python Interop)
 
 ---
 
@@ -56,10 +56,10 @@ The platform encompasses 20 verified hospital modules, divided between two inter
 
 ## 4. Key Architectural Integration Decisions
 
-1. **Discharge Checklist → Billing Trigger (`ASSUMPTIONS.md`):**
+1. **Discharge Checklist → Billing Trigger (`docs/requirements/ASSUMPTIONS.md`):**
    - Configured as **100% completion of the Nursing Discharge Checklist** before the discharge billing invoice generates.
    - Decoupled from nurse sign-off to prevent discharge bottlenecking while retaining audited doctor/matron emergency override capability.
-2. **Inpatient Admission Deposit Gate (`ASSUMPTIONS.md`):**
+2. **Inpatient Admission Deposit Gate (`docs/requirements/ASSUMPTIONS.md`):**
    - Implemented as an **API-enforced backend flag** gating clinician folder access for active admissions.
    - **Accident & Emergency (A&E) admissions are unconditionally exempt** to protect immediate patient life.
 3. **Audit Log Primacy (`AGENTS.md`):**

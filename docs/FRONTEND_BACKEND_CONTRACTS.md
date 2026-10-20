@@ -4,13 +4,13 @@
 > **Document Status:** Authoritative API Handshake Specification  
 > **Target Audience:** Go Core Backend Engineers, Python Interop Backend Engineers  
 > **Author:** Front-End Architecture Team  
-> **Scope:** Defines the exact request/response JSON schemas, routes, and error contracts expected by the 7 preview frontend modules (`Theatre`, `Emergency`, `Maternity`, `Admin`, `Reporting`, `NHIA`, `Radiology`) to transition them from demo preview mode to live database-backed operations (per `TASKS.md` Line 446).
+> **Scope:** Defines the exact request/response JSON schemas, routes, and error contracts expected by the 7 preview frontend modules (`Theatre`, `Emergency`, `Maternity`, `Admin`, `Reporting`, `NHIA`, `Radiology`) to transition them from demo preview mode to live database-backed operations (per `docs/project/TASKS.md` Line 446).
 
 ---
 
 ## 1. Architectural Foundations & Global Contract Standards
 
-### 1.1 Backend Service Ownership Split (per `ARCHITECTURE.md`)
+### 1.1 Backend Service Ownership Split (per `docs/architecture/ARCHITECTURE.md`)
 - **Go Core Service (`http://localhost:8080`):** Owns `theatre`, `emergency`, `maternity`, `admin`, and `reporting`, in addition to Auth (`/api/v1/auth/login`) and Audit (`/internal/audit-log`).
 - **Python Interop Service (`http://localhost:8000`):** Owns `nhia` and `radiology` (along with `laboratory`). All mutating operations must call Go Core's internal audit log and authorization check before committing.
 
