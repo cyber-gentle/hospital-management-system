@@ -504,7 +504,7 @@ Owner requested MFA, automatic lockout and enforced security settings on the exi
 
 Validation: Go tests against disposable PostgreSQL, go vet, 63 Python tests including the real Go boundary, and both Compose build-context checks passed. Existing audit writer and SQL migrations are byte-identical.
 
-- [ ] Follow-up discovered during relocation: align infra/docker-compose.yml with the root Compose MFA key and frontend proxy environment; the alternate file already lacked these settings before this move.
+- [x] Align infra/docker-compose.yml with the root Compose required MFA key, Docker-network frontend proxy URLs and demo-mode default (2026-10-21). Both resolved Compose configurations are identical with the same project name and synthetic environment; build paths exist and both reject a missing MFA key. Configuration validation only; running services were not restarted.
 
 ## Documentation cleanup — approved 2026-10-19
 

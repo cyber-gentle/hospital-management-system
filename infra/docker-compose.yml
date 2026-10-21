@@ -29,6 +29,7 @@ services:
       PORT: "8080"
       DATABASE_URL: "postgres://${POSTGRES_USER:-hims_app}:${POSTGRES_PASSWORD:-hims_dev_password}@postgres:5432/${POSTGRES_DB:-hims}?sslmode=disable"
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env - generate one with `openssl rand -base64 48`}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?MFA_ENCRYPTION_KEY must be set in .env - generate one with `openssl rand -base64 32`}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY must be set in .env - generate one with `openssl rand -base64 32`}
     depends_on:
       postgres:
@@ -64,8 +65,9 @@ services:
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     environment:
-      VITE_CORE_API_URL: "http://localhost:8080"
-      VITE_INTEROP_API_URL: "http://localhost:8000"
+      CORE_API_URL: "http://core-go:8080"
+      INTEROP_API_URL: "http://interop-py:8000"
+      VITE_DEMO_MODE: "${VITE_DEMO_MODE:-false}"
     volumes:
       - ../frontend:/app
       - /app/node_modules
